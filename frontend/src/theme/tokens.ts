@@ -1,0 +1,15 @@
+export const tokens = {
+  bg: '#FFFFFF',
+  bgSubtle: '#F6F8FB',
+  border: '#E5E9F0',
+  text: '#0F172A',
+  textMuted: '#64748B',
+  primary: '#2D7FF9',
+  primary700: '#1D5FD6',
+  primaryNavy: '#14245C',
+  accent: '#22C55E',
+  accent700: '#16A34A',
+  up: '#16A34A',
+  down: '#EF4444',
+  warn: '#F59E0B',
+} as const
