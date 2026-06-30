@@ -62,7 +62,7 @@ sudo bash deploy/vps-bootstrap.sh
 #### Clone & configure
 
 ```bash
-git clone https://github.com/YOUR_USER/scalp-desk.git /opt/scalp-desk
+git clone https://github.com/akram1089/scalping_optionperks.git /opt/scalp-desk
 cd /opt/scalp-desk
 cp .env.production.example .env
 nano .env

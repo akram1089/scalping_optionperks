@@ -1,37 +1,20 @@
-# Push ScalpDesk to GitHub (one-time)
+# Push ScalpDesk to GitHub
 
-Git is initialized and committed locally. GitHub CLI is installed but **you must log in** (interactive step).
-
-## Option A — GitHub CLI (recommended)
+**Repository:** https://github.com/akram1089/scalping_optionperks
 
 ```powershell
 cd c:\Users\tufai\OneDrive\Desktop\scalp-desk
-
-# Log in (opens browser)
-gh auth login
-
-# Create private repo and push
-gh repo create scalp-desk --private --source=. --remote=origin --push --description "Self-hosted Zerodha scalping desk"
-```
-
-## Option B — Manual
-
-1. Create a new repo at https://github.com/new named `scalp-desk` (private recommended).
-2. Do **not** initialize with README (repo already exists locally).
-
-```powershell
-cd c:\Users\tufai\OneDrive\Desktop\scalp-desk
-git remote add origin https://github.com/YOUR_USERNAME/scalp-desk.git
+git remote add origin https://github.com/akram1089/scalping_optionperks.git
 git push -u origin main
 ```
 
-## VPS deploy after push
+## VPS deploy
 
 On your VPS:
 
 ```bash
 sudo bash deploy/vps-bootstrap.sh
-git clone https://github.com/YOUR_USERNAME/scalp-desk.git /opt/scalp-desk
+git clone https://github.com/akram1089/scalping_optionperks.git /opt/scalp-desk
 cd /opt/scalp-desk
 cp .env.production.example .env
 nano .env
