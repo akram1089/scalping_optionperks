@@ -5,9 +5,8 @@ WEB_PORT="${WEB_HOST_PORT:-28790}"
 DOMAIN="${DOMAIN:-scalping.optionperks.com}"
 
 check_json_health() {
-  local url=$1
   local body
-  body=$(curl -sf "$url" 2>/dev/null) || return 1
+  body=$(curl -sf "$@" 2>/dev/null) || return 1
   echo "$body" | grep -q '"status"[[:space:]]*:[[:space:]]*"ok"'
 }
 
