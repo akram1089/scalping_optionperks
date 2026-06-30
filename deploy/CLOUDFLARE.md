@@ -9,28 +9,39 @@ curl -sI https://scalping.optionperks.com/api/health
 # Location: https://scalping.optionperks.com/api/health   ← same URL = redirect loop
 ```
 
-Docker is fine. **Cloudflare** (or CF + origin SSL mismatch) is causing the loop.
+Your diagnose output confirms:
+- `127.0.0.1:28790` → OK (Docker works)
+- `127.0.0.1:443` → OK (HTTPS nginx works)
+- `127.0.0.1:80` → **301** (HTTP nginx redirects instead of proxying)
+
+With **Cloudflare Flexible SSL**, Cloudflare talks to your VPS on **port 80**. Nginx returns `301 → https://...` → infinite loop.
+
+Docker is fine. **Cloudflare + nginx :80 redirect** is the cause.
 
 ---
 
-## Fix in Cloudflare dashboard
+## Fix (pick one — or do both)
 
-1. Open [Cloudflare](https://dash.cloudflare.com) → **optionperks.com** → **DNS**
-   - `scalping` A record should point to your VPS IP
-   - Note if proxy is **Proxied** (orange cloud) or **DNS only** (grey)
+### Fix 1 — Cloudflare SSL (recommended, 1 minute)
 
-2. **SSL/TLS** → Overview → set encryption mode to:
-   - **Full** or **Full (strict)**  
-   - **NOT Flexible** ← Flexible causes HTTPS↔HTTP redirect loops with origin nginx
+Origin **:443 already works**. Point Cloudflare at it:
 
-3. **Rules** → **Redirect Rules** / **Page Rules**
-   - Remove duplicate rules for `scalping.optionperks.com` (e.g. “Always Use HTTPS” + origin also redirects)
+1. [Cloudflare Dashboard](https://dash.cloudflare.com) → **optionperks.com** → **SSL/TLS**
+2. Set to **Full (strict)** (not Flexible)
+3. Test after 1 min: `curl -s https://scalping.optionperks.com/api/health`
 
-4. Wait 1–2 minutes, then test:
-   ```bash
-   curl -s https://scalping.optionperks.com/api/health
-   ```
-   Expected: `{"status":"ok"}`
+### Fix 2 — Repair nginx :80 on VPS
+
+Certbot often replaces :80 with `return 301 https://...`. Reinstall our vhost:
+
+```bash
+cd /opt/scalp-desk
+git pull
+sudo bash deploy/install-nginx-vhost.sh
+bash deploy/diagnose-public.sh
+```
+
+Port **80** must `proxy_pass http://127.0.0.1:28790` for this domain (not redirect).
 
 ---
 
