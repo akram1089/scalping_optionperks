@@ -33,9 +33,26 @@ fi
 
 DOMAIN="${DOMAIN:-scalping.optionperks.com}"
 CADDY_ENABLED="${CADDY_ENABLED:-false}"
-HTTP_PORT="${HTTP_PORT:-8088}"
-HTTPS_PORT="${HTTPS_PORT:-8448}"
-WEB_HOST_PORT="${WEB_HOST_PORT:-8090}"
+HTTP_PORT="${HTTP_PORT:-28780}"
+HTTPS_PORT="${HTTPS_PORT:-28743}"
+WEB_HOST_PORT="${WEB_HOST_PORT:-28790}"
+
+check_port() {
+  local port=$1
+  local label=$2
+  if ss -tln 2>/dev/null | grep -q ":${port} "; then
+    echo "ERROR: ${label} port ${port} is already in use. Pick another in .env"
+    echo "  ss -tlnp | grep ${port}"
+    exit 1
+  fi
+}
+
+if [[ "${CADDY_ENABLED}" == "true" || "${CADDY_ENABLED}" == "1" ]]; then
+  check_port "${HTTP_PORT}" "HTTP_PORT"
+  check_port "${HTTPS_PORT}" "HTTPS_PORT"
+else
+  check_port "${WEB_HOST_PORT}" "WEB_HOST_PORT"
+fi
 
 COMPOSE_FILE="-f docker-compose.prod.yml"
 COMPOSE_PROFILES=""
