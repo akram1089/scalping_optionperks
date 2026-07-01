@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.broker.ticker_service import bootstrap_live_ticker
 from app.routers import accounts, auth, charts, instruments, strategies, ws
 from app.routers.ws import start_relay, stop_relay
 from app.scheduler import ensure_global_state, setup_scheduler
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     await ensure_global_state()
     await start_relay()
+    await bootstrap_live_ticker()
     scheduler = setup_scheduler()
     scheduler.start()
     logger.info("ScalpDesk API started")

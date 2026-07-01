@@ -1,10 +1,12 @@
 import { Outlet } from 'react-router-dom'
 import { useLiveWebSocket } from '../../hooks/useLiveWebSocket'
+import { useLiveBootstrap } from '../../hooks/useLiveBootstrap'
 import { Sidebar } from './Sidebar'
 import { TopStatusBar } from './TopStatusBar'
 
 export function AppShell() {
   useLiveWebSocket()
+  useLiveBootstrap()
 
   return (
     <div className="flex min-h-screen bg-bg">

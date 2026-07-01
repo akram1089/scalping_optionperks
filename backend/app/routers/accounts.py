@@ -3,7 +3,7 @@ from datetime import date
 from uuid import UUID
 
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.broker.fyers.adapter import fyers_generate_token, fyers_login_url
 from app.broker.kite_client import KiteService
 from app.broker.kotak.adapter import kotak_login
 from app.broker.registry import list_brokers
+from app.broker.ticker_service import bootstrap_live_ticker
 from app.broker.ventura.adapter import ventura_generate_token, ventura_sso_url, ventura_totp_login
 from app.config import get_settings
 from app.db import get_db
@@ -39,6 +40,20 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 _pending_connect: dict[str, UUID] = {}
 _pending_fyers: dict[str, UUID] = {}
 _pending_ventura: dict[str, UUID] = {}
+
+
+def _schedule_ticker_restart(background_tasks: BackgroundTasks) -> None:
+    background_tasks.add_task(bootstrap_live_ticker)
+
+
+@router.post("/live-ticker/bootstrap")
+async def restart_live_ticker(
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+):
+    """Start or restart Kite index LTP stream using the first connected Zerodha account."""
+    background_tasks.add_task(bootstrap_live_ticker)
+    return {"status": "starting"}
 
 
 def _account_response(account: BrokerAccount) -> BrokerAccountResponse:
@@ -238,6 +253,7 @@ async def connect_account(
 @router.post("/{account_id}/login")
 async def broker_login(
     account_id: UUID,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -285,10 +301,10 @@ async def broker_login(
         account.token_date = date.today()
 
     elif account.broker == "zerodha" and account.auth_mode == "enctoken":
-        return await connect_enctoken(account_id, EnctokenConnectRequest(), user, db)
+        return await connect_enctoken(account_id, EnctokenConnectRequest(), background_tasks, user, db)
 
     else:
-        return await auto_login(account_id, user, db)
+        return await auto_login(account_id, background_tasks, user, db)
 
     db.add(
         AuditLog(
@@ -306,6 +322,7 @@ async def broker_login(
 async def connect_enctoken(
     account_id: UUID,
     body: EnctokenConnectRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -366,12 +383,14 @@ async def connect_enctoken(
         )
     )
     await db.commit()
+    _schedule_ticker_restart(background_tasks)
     return {"status": "connected", "account_id": str(account_id), "user_id": user_id}
 
 
 @router.get("/callback")
 async def kite_callback(
     request: Request,
+    background_tasks: BackgroundTasks,
     request_token: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -402,6 +421,7 @@ async def kite_callback(
         account.zerodha_user_id = str(session["user_id"])
     await db.commit()
     _pending_connect.pop(api_key_dec, None)
+    _schedule_ticker_restart(background_tasks)
     return {"status": "connected", "account_id": str(account_id)}
 
 
@@ -453,6 +473,7 @@ async def ventura_callback(
 @router.post("/{account_id}/auto-login")
 async def auto_login(
     account_id: UUID,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -465,7 +486,7 @@ async def auto_login(
         raise HTTPException(status_code=400, detail="Zerodha user ID required for auto-login")
 
     if account.auth_mode == "enctoken":
-        return await connect_enctoken(account_id, EnctokenConnectRequest(), user, db)
+        return await connect_enctoken(account_id, EnctokenConnectRequest(), background_tasks, user, db)
 
     if not account.totp_secret_enc:
         raise HTTPException(status_code=400, detail="TOTP secret required for Kite Connect auto-login")
@@ -494,6 +515,7 @@ async def auto_login(
         )
     )
     await db.commit()
+    _schedule_ticker_restart(background_tasks)
     return {"status": "connected", "account_id": str(account_id)}
 
 

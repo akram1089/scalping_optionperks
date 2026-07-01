@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -52,10 +53,14 @@ class TickerManager:
         self._task: asyncio.Task | None = None
         self._tokens: list[int] = []
         self._symbol_map: dict[int, str] = {}
+        self._publish: Callable[[str, dict[str, Any]], None] | None = None
 
     def set_instruments(self, token_symbol_map: dict[int, str]) -> None:
         self._symbol_map = token_symbol_map
         self._tokens = list(token_symbol_map.keys())
+
+    def set_publish_callback(self, callback: Callable[[str, dict[str, Any]], None]) -> None:
+        self._publish = callback
 
     async def start(self, access_token: str, api_key: str) -> None:
         if self._running:
@@ -71,12 +76,14 @@ class TickerManager:
                 await self._task
             except asyncio.CancelledError:
                 pass
+            self._task = None
 
     async def _run_ticker(self, api_key: str, access_token: str) -> None:
         try:
             from kiteconnect import KiteTicker
 
             kws = KiteTicker(api_key, access_token)
+            publish = self._publish
 
             def on_ticks(ws, ticks):
                 for tick in ticks:
@@ -84,22 +91,24 @@ class TickerManager:
                     symbol = self._symbol_map.get(token, str(token))
                     ltp = tick.get("last_price", 0)
                     change = tick.get("change", 0)
-                    asyncio.get_event_loop().create_task(
-                        RedisPubSub.publish_tick(
-                            symbol,
-                            {
-                                "ltp": ltp,
-                                "change_pct": change,
-                                "volume": tick.get("volume_traded", 0),
-                                "ohlc": tick.get("ohlc", {}),
-                            },
-                        )
-                    )
+                    payload = {
+                        "ltp": ltp,
+                        "change_pct": change,
+                        "volume": tick.get("volume_traded", 0),
+                        "ohlc": tick.get("ohlc", {}),
+                    }
+                    if publish:
+                        publish(symbol, payload)
+                    else:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            loop.create_task(RedisPubSub.publish_tick(symbol, payload))
 
             def on_connect(ws, response):
                 if self._tokens:
                     ws.subscribe(self._tokens)
                     ws.set_mode(ws.MODE_LTP, self._tokens)
+                logger.info("Kite ticker connected, subscribed to %d tokens", len(self._tokens))
 
             kws.on_ticks = on_ticks
             kws.on_connect = on_connect

@@ -84,6 +84,8 @@ export const api = {
     request<{ status: string; account_id: string }>(`/accounts/${id}/auto-login`, { method: 'POST' }),
   updateAccount: (id: string, data: UpdateAccountPayload) =>
     request<BrokerAccount>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  bootstrapLiveTicker: () =>
+    request<{ status: string }>('/accounts/live-ticker/bootstrap', { method: 'POST' }),
   getAccountLiveInfo: (id: string) => request<BrokerLiveInfo>(`/accounts/${id}/live-info`),
   getChartCandles: (params: {
     instrument_token: number
