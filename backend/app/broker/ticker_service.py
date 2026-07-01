@@ -15,7 +15,13 @@ from app.models import BrokerAccount, Instrument
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["INDEX_DISPLAY_SYMBOLS", "bootstrap_live_ticker", "fetch_index_ltp_now", "get_stream_status"]
+__all__ = [
+    "INDEX_DISPLAY_SYMBOLS",
+    "bootstrap_live_ticker",
+    "fetch_index_ltp_now",
+    "get_stream_status",
+    "subscribe_chart_instruments",
+]
 
 _INDEX_TARGETS: list[tuple[str, str, str]] = [
     ("NIFTY 50", "NSE", "NIFTY 50"),
@@ -101,8 +107,33 @@ async def _cached_index_ticks() -> dict[str, dict]:
     return ticks
 
 
+async def subscribe_chart_instruments(
+    instruments: list[dict[str, int | str]],
+) -> dict[str, int]:
+    """Subscribe KiteTicker to additional instrument_token + tradingsymbol pairs."""
+    token_map: dict[int, str] = {}
+    for item in instruments:
+        token = int(item["instrument_token"])
+        symbol = str(item.get("tradingsymbol") or token)
+        token_map[token] = symbol
+
+    if not token_map:
+        return {"added": 0, "total": ticker_manager.subscription_count()}
+
+    if not ticker_manager.is_running:
+        await bootstrap_live_ticker()
+
+    added = ticker_manager.merge_subscriptions(token_map)
+    return {"added": len(added), "total": ticker_manager.subscription_count()}
+
+
 async def fetch_index_ltp_now() -> dict[str, dict]:
-    """Fetch index LTP — OAuth uses REST; enctoken uses Redis cache + historical fallback."""
+    """Return cached ticks; only hit historical REST when stream is down."""
+    if live_stream_active():
+        cached = await _cached_index_ticks()
+        if cached:
+            return cached
+
     async with async_session() as db:
         account = await _get_connected_zerodha(db)
         if not account:
@@ -210,7 +241,8 @@ async def bootstrap_live_ticker() -> bool:
 
         started = await _start_kite_ticker(account, token_map)
         if started:
-            await fetch_index_ltp_now()
+            if not await _cached_index_ticks():
+                await fetch_index_ltp_now()
             logger.info(
                 "KiteTicker started for %s (%d indices, auth=%s)",
                 account.label,
@@ -226,11 +258,9 @@ def live_stream_active() -> bool:
 
 async def ticker_watchdog() -> None:
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(15)
         try:
             if not live_stream_active():
                 await bootstrap_live_ticker()
-            elif not await _cached_index_ticks():
-                await fetch_index_ltp_now()
         except Exception:
             logger.exception("Ticker watchdog error")

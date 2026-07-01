@@ -8,9 +8,11 @@ export function asNumber(value: unknown, fallback = 0): number {
 
 export interface TickData {
   symbol: string
+  instrument_token?: number
   ltp?: number
   change_pct?: number
   volume?: number
+  ts?: number
 }
 
 export interface StreamStatus {
@@ -105,6 +107,11 @@ export const api = {
     request<{ ticks: Record<string, TickData>; stream: StreamStatus }>('/ticks/snapshot'),
   refreshTicks: () =>
     request<{ ticks: Record<string, TickData>; stream: StreamStatus }>('/ticks/refresh', { method: 'POST' }),
+  subscribeTicks: (instruments: { instrument_token: number; tradingsymbol: string }[]) =>
+    request<{ added: number; total: number }>('/ticks/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ instruments }),
+    }),
   getAccountLiveInfo: (id: string) => request<BrokerLiveInfo>(`/accounts/${id}/live-info`),
   getChartCandles: (params: {
     instrument_token: number

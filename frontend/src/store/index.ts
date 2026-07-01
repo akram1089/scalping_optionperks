@@ -45,10 +45,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 interface LiveState {
   ticks: Record<string, TickData>
+  ticksByToken: Record<number, TickData>
   selectedAccountId: string | null
   killSwitch: boolean
   wsConnected: boolean
   streamStatus: StreamStatus | null
+  lastTickAt: number | null
   setTick: (data: TickData) => void
   setSelectedAccount: (id: string | null) => void
   setKillSwitch: (v: boolean) => void
@@ -58,12 +60,25 @@ interface LiveState {
 
 export const useLiveStore = create<LiveState>((set) => ({
   ticks: {},
+  ticksByToken: {},
   selectedAccountId: null,
   killSwitch: false,
   wsConnected: false,
   streamStatus: null,
+  lastTickAt: null,
   setTick: (data) =>
-    set((s) => ({ ticks: { ...s.ticks, [data.symbol]: { ...s.ticks[data.symbol], ...data } } })),
+    set((s) => {
+      const sym = data.symbol
+      const byToken =
+        data.instrument_token != null
+          ? { ...s.ticksByToken, [data.instrument_token]: { ...s.ticksByToken[data.instrument_token], ...data } }
+          : s.ticksByToken
+      return {
+        ticks: { ...s.ticks, [sym]: { ...s.ticks[sym], ...data } },
+        ticksByToken: byToken,
+        lastTickAt: Date.now(),
+      }
+    }),
   setSelectedAccount: (id) => set({ selectedAccountId: id }),
   setKillSwitch: (v) => set({ killSwitch: v }),
   setWsConnected: (v) => set({ wsConnected: v }),

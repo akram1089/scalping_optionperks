@@ -33,6 +33,7 @@ interface Props {
   symbol: string
   interval: string
   live?: boolean
+  showSeconds?: boolean
   params: IndicatorParams
   levels: PriceLevels
   showSignals?: boolean
@@ -50,6 +51,7 @@ export function TradingChart({
   symbol,
   interval,
   live = false,
+  showSeconds = false,
   params,
   levels,
   showSignals = true,
@@ -169,6 +171,12 @@ export function TradingChart({
     mainChart.current?.timeScale().fitContent()
     rsiChart.current?.timeScale().fitContent()
   }, [candles, params, levels, showSignals])
+
+  useEffect(() => {
+    mainChart.current?.applyOptions({
+      timeScale: { secondsVisible: showSeconds },
+    })
+  }, [showSeconds])
 
   const lastClose = candles.length ? candles[candles.length - 1].close : null
 

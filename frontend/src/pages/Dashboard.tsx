@@ -103,7 +103,7 @@ export function DashboardPage() {
               symbol={sym}
               price={tick?.ltp}
               change={tick?.change_pct}
-              delayed={!tick?.ltp}
+              delayed={!tick?.ltp || (tick.ts != null && Date.now() / 1000 - tick.ts > 30)}
             />
           )
         })}

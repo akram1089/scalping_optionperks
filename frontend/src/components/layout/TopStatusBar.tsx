@@ -12,6 +12,7 @@ export function TopStatusBar({ onMenuClick }: Props) {
   const market = useMarketStatus()
   const killSwitch = useLiveStore((s) => s.killSwitch)
   const wsConnected = useLiveStore((s) => s.wsConnected)
+  const lastTickAt = useLiveStore((s) => s.lastTickAt)
   const streamStatus = useLiveStore((s) => s.streamStatus)
   const ticks = useLiveStore((s) => s.ticks)
   const tickCount = Object.keys(ticks).length
@@ -23,7 +24,7 @@ export function TopStatusBar({ onMenuClick }: Props) {
   })
 
   const isKilled = killSwitch || killData?.kill_switch
-  const streamLive = tickCount > 0
+  const streamLive = tickCount > 0 && lastTickAt != null && Date.now() - lastTickAt < 5_000
   const streamLabel = streamLive ? 'LIVE' : wsConnected ? 'WAITING' : 'OFFLINE'
   const streamOk = streamLive
   const waitHint = !streamLive && streamStatus?.message

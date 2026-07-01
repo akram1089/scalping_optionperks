@@ -5,8 +5,10 @@ import { TradingChart, demoCandlesForSymbol, type ChartCandle } from '../charts/
 import { DEFAULT_INDICATOR_PARAMS, type IndicatorParams } from '../charts/indicators'
 import { ChartSymbolPicker, type ChartSymbol } from '../components/charts/ChartSymbolPicker'
 import { PageHeader, SectionCard } from '../components/ui/PageHeader'
+import { useLiveTickCandles } from '../hooks/useLiveTickCandles'
 
 const INTERVALS = [
+  { value: 'tick', label: '1s' },
   { value: 'minute', label: '1m' },
   { value: '3minute', label: '3m' },
   { value: '5minute', label: '5m' },
@@ -26,7 +28,7 @@ const DEFAULT_SYMBOL: ChartSymbol = {
 
 export function ChartsPage() {
   const [symbol, setSymbol] = useState<ChartSymbol>(DEFAULT_SYMBOL)
-  const [interval, setInterval] = useState('5minute')
+  const [interval, setInterval] = useState('tick')
   const [params, setParams] = useState<IndicatorParams>({ ...DEFAULT_INDICATOR_PARAMS })
   const [entry, setEntry] = useState<string>('')
   const [stopLoss, setStopLoss] = useState<string>('')
@@ -56,7 +58,34 @@ export function ChartsPage() {
     }
   }, [defaultFut, symbol.instrument_token])
 
+  const isTickInterval = interval === 'tick'
   const canFetchLive = Boolean(symbol.instrument_token && connectedAccount)
+
+  const { data: seedData } = useQuery({
+    queryKey: ['chart-seed', symbol.instrument_token, connectedAccount?.id],
+    queryFn: () =>
+      api.getChartCandles({
+        instrument_token: symbol.instrument_token,
+        tradingsymbol: symbol.tradingsymbol,
+        exchange: symbol.exchange,
+        interval: 'minute',
+        days: 1,
+        account_id: connectedAccount?.id,
+      }),
+    enabled: canFetchLive && isTickInterval,
+    staleTime: 60_000,
+  })
+
+  const seedClose = seedData?.candles?.length
+    ? seedData.candles[seedData.candles.length - 1].close
+    : undefined
+
+  const { candles: tickCandles } = useLiveTickCandles(
+    symbol.instrument_token,
+    symbol.tradingsymbol,
+    Boolean(canFetchLive && isTickInterval),
+    seedClose,
+  )
 
   const { data: liveData, isLoading, error } = useQuery({
     queryKey: ['chart-candles', symbol.tradingsymbol, symbol.instrument_token, interval, connectedAccount?.id],
@@ -69,17 +98,24 @@ export function ChartsPage() {
         days: interval === 'day' ? 120 : 5,
         account_id: connectedAccount?.id,
       }),
-    enabled: canFetchLive,
-    staleTime: 30_000,
+    enabled: canFetchLive && !isTickInterval,
+    staleTime: isTickInterval ? 0 : 30_000,
+    refetchInterval: isTickInterval ? false : 30_000,
     retry: 1,
   })
 
   const candles: ChartCandle[] = useMemo(() => {
+    if (isTickInterval) {
+      if (tickCandles.length) return tickCandles
+      return seedClose ? [] : demoCandlesForSymbol(symbol.tradingsymbol)
+    }
     if (liveData?.candles?.length) return liveData.candles
     return demoCandlesForSymbol(symbol.tradingsymbol)
-  }, [liveData, symbol.tradingsymbol])
+  }, [isTickInterval, tickCandles, liveData, symbol.tradingsymbol, seedClose])
 
-  const isLive = Boolean(liveData?.live && liveData.candles.length)
+  const isLive = isTickInterval
+    ? Boolean(canFetchLive && tickCandles.length > 0)
+    : Boolean(liveData?.live && liveData.candles.length)
 
   const lastClose = candles.length ? candles[candles.length - 1].close : 0
 
@@ -144,7 +180,10 @@ export function ChartsPage() {
 
       <div className="grid xl:grid-cols-4 gap-6">
         <div className="xl:col-span-3 space-y-4">
-          {isLoading && canFetchLive && (
+          {isTickInterval && canFetchLive && tickCandles.length === 0 && (
+            <p className="text-sm text-text-muted">Waiting for live ticks on 1s chart…</p>
+          )}
+          {isLoading && canFetchLive && !isTickInterval && (
             <p className="text-sm text-text-muted">Loading live candles…</p>
           )}
           <TradingChart
@@ -152,6 +191,7 @@ export function ChartsPage() {
             symbol={symbol.tradingsymbol}
             interval={intervalLabel}
             live={isLive}
+            showSeconds={isTickInterval}
             params={params}
             levels={levels}
             showSignals={showSignals}
