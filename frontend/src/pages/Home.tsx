@@ -24,7 +24,7 @@ export function HomePage() {
               Institutional-Grade Scalping for Indian Markets
             </h1>
             <p className="text-lg text-text-muted mt-6 leading-relaxed max-w-xl">
-              Self-hosted Hilega Milega strategy engine with Zerodha Kite Connect, multi-timeframe
+              Self-hosted Aladin strategy engine with multi-broker support, multi-timeframe
               confirmation, and production-grade risk management. Built for serious intraday operators.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
@@ -75,7 +75,7 @@ export function HomePage() {
               })}
             </div>
             <div className="mt-4 p-3 rounded-btn bg-primary-50 border border-primary/10 text-sm">
-              <span className="text-primary font-semibold">Hilega Milega</span>
+              <span className="text-primary font-semibold">Aladin</span>
               <span className="text-text-muted"> — RSI crossover signal detected on RELIANCE 5m</span>
             </div>
           </div>
@@ -90,7 +90,7 @@ export function HomePage() {
           </p>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { title: 'Hilega Milega Engine', desc: 'RSI + WMA + EMA crossover with higher-timeframe trend confirmation and anti-chase filters.' },
+              { title: 'Aladin Engine', desc: 'RSI + WMA + EMA crossover with higher-timeframe trend confirmation and anti-chase filters.' },
               { title: 'Multi-Account Fan-Out', desc: 'One signal, many accounts. Isolated failure handling so one reject never blocks the fleet.' },
               { title: 'Risk Guards', desc: 'Daily max loss, trade limits, consecutive-loss pause, and a one-click global kill switch.' },
             ].map((f) => (

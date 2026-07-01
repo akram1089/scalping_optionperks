@@ -8,11 +8,18 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.crypto import decrypt_value
+from app.broker.constants import ORDER_LIMIT, ORDER_MARKET, PRODUCT_MIS, SIDE_BUY, SIDE_SELL
 from app.broker.session import get_broker_for_account
 from app.models import BrokerAccount, Order, Position, Trade
 
 logger = logging.getLogger(__name__)
+
+
+def _exchange_for_symbol(symbol: str) -> str:
+    """Infer exchange from tradingsymbol — NFO contracts contain expiry month codes."""
+    if any(x in symbol for x in ("FUT", "CE", "PE")) or symbol.startswith("NIFTY"):
+        return "NFO"
+    return "NSE"
 
 
 class ExecutionService:
@@ -47,25 +54,29 @@ class ExecutionService:
 
         if paper:
             order.status = "COMPLETE"
-            order.kite_order_id = f"PAPER-{uuid.uuid4().hex[:8]}"
+            order.broker_order_id = f"PAPER-{uuid.uuid4().hex[:8]}"
             await self._open_position(account, strategy_id, symbol, side, qty, price, stop_loss, target, paper)
         else:
             try:
-                kite = await self._kite_for_account(account)
-                txn_type = kite.kite.TRANSACTION_TYPE_BUY if side == "BUY" else kite.kite.TRANSACTION_TYPE_SELL
-                oid = kite.place_order(
-                    variety=kite.kite.VARIETY_REGULAR,
-                    exchange="NSE",
-                    tradingsymbol=symbol,
-                    transaction_type=txn_type,
-                    quantity=qty,
-                    product=kite.kite.PRODUCT_MIS,
-                    order_type=kite.kite.ORDER_TYPE_LIMIT,
-                    price=price,
-                )
-                order.kite_order_id = str(oid)
-                order.status = "OPEN"
-                await self._open_position(account, strategy_id, symbol, side, qty, price, stop_loss, target, paper)
+                broker = get_broker_for_account(account)
+                try:
+                    exchange = _exchange_for_symbol(symbol)
+                    oid = broker.place_order(
+                        exchange=exchange,
+                        symbol=symbol,
+                        side=side,
+                        qty=qty,
+                        product=PRODUCT_MIS,
+                        order_type=ORDER_LIMIT,
+                        price=price,
+                    )
+                    order.broker_order_id = str(oid)
+                    order.status = "OPEN"
+                    await self._open_position(
+                        account, strategy_id, symbol, side, qty, price, stop_loss, target, paper
+                    )
+                finally:
+                    broker.close()
             except Exception as exc:
                 logger.exception("Order placement failed")
                 order.status = "REJECTED"
@@ -107,7 +118,7 @@ class ExecutionService:
         exit_reason: str,
         paper: bool,
     ) -> Trade:
-        side_exit = "SELL" if position.side == "BUY" else "BUY"
+        side_exit = SIDE_SELL if position.side == SIDE_BUY else SIDE_BUY
         order = Order(
             broker_account_id=account.id,
             strategy_id=position.strategy_id,
@@ -118,31 +129,29 @@ class ExecutionService:
             order_type="MARKET",
             status="COMPLETE" if paper else "PENDING",
             paper=paper,
-            kite_order_id=f"PAPER-{uuid.uuid4().hex[:8]}" if paper else None,
+            broker_order_id=f"PAPER-{uuid.uuid4().hex[:8]}" if paper else None,
         )
         self.db.add(order)
         await self.db.flush()
 
         if not paper:
-            kite = await self._kite_for_account(account)
-            txn = (
-                kite.kite.TRANSACTION_TYPE_SELL
-                if position.side == "BUY"
-                else kite.kite.TRANSACTION_TYPE_BUY
-            )
-            kite.place_order(
-                variety=kite.kite.VARIETY_REGULAR,
-                exchange="NSE",
-                tradingsymbol=position.symbol,
-                transaction_type=txn,
-                quantity=position.qty,
-                product=kite.kite.PRODUCT_MIS,
-                order_type=kite.kite.ORDER_TYPE_MARKET,
-            )
+            broker = get_broker_for_account(account)
+            try:
+                exchange = _exchange_for_symbol(position.symbol)
+                broker.place_order(
+                    exchange=exchange,
+                    symbol=position.symbol,
+                    side=side_exit,
+                    qty=position.qty,
+                    product=PRODUCT_MIS,
+                    order_type=ORDER_MARKET,
+                )
+            finally:
+                broker.close()
 
         entry = float(position.avg_price)
         pnl = (exit_price - entry) * position.qty
-        if position.side == "SELL":
+        if position.side == SIDE_SELL:
             pnl = -pnl
 
         trade = Trade(
@@ -163,6 +172,3 @@ class ExecutionService:
         self.db.add(trade)
         await self.db.delete(position)
         return trade
-
-    async def _kite_for_account(self, account: BrokerAccount):
-        return get_broker_for_account(account)

@@ -69,7 +69,7 @@ export function LightweightChart({ candles = [], symbol = 'RELIANCE' }: Props) {
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <div>
           <span className="font-display font-bold text-sm uppercase tracking-wide text-primary-navy">{symbol}</span>
-          <span className="text-xs text-text-faint ml-2">Hilega Milega · 5m</span>
+          <span className="text-xs text-text-faint ml-2">Aladin · 5m</span>
         </div>
         <span className="badge bg-bg-subtle text-text-faint">DEMO DATA</span>
       </div>

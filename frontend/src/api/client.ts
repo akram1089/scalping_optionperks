@@ -67,10 +67,14 @@ export const api = {
   me: () => request<{ id: string; email: string }>('/auth/me'),
 
   getAccounts: () => request<BrokerAccount[]>('/accounts'),
+  getAccountLimits: () => request<AccountLimits>('/accounts/limits'),
+  getBrokers: () => request<BrokerMeta[]>('/accounts/brokers'),
   addAccount: (data: AddAccountPayload) =>
     request<BrokerAccount>('/accounts', { method: 'POST', body: JSON.stringify(data) }),
   connectAccount: (id: string) =>
     request<{ login_url: string }>(`/accounts/${id}/connect`, { method: 'POST' }),
+  brokerLogin: (id: string) =>
+    request<{ status: string; account_id: string }>(`/accounts/${id}/login`, { method: 'POST' }),
   connectEnctoken: (id: string, data: { enctoken?: string; twofa_code?: string }) =>
     request<{ status: string; user_id: string }>(`/accounts/${id}/connect-enctoken`, {
       method: 'POST',
@@ -153,9 +157,10 @@ export const api = {
 export interface BrokerAccount {
   id: string
   label: string
-  broker: string
-  auth_mode: 'kite_connect' | 'enctoken'
+  broker: BrokerSlug
+  auth_mode: string
   zerodha_user_id: string | null
+  client_id?: string | null
   capital: number
   auto_login: boolean
   enabled: boolean
@@ -163,14 +168,32 @@ export interface BrokerAccount {
   session_active: boolean
 }
 
+export type BrokerSlug = 'zerodha' | 'angel_one' | 'fyers' | 'kotak' | 'ventura'
+
+export interface BrokerMeta {
+  slug: BrokerSlug
+  label: string
+  auth_modes: string[]
+  required_fields: Record<string, string[]>
+  connect_type: string
+}
+
+export interface AccountLimits {
+  max_accounts: number
+  current_count: number
+}
+
 export interface AddAccountPayload {
   label: string
-  auth_mode?: 'kite_connect' | 'enctoken'
+  broker?: BrokerSlug
+  auth_mode?: string
   api_key?: string
   api_secret?: string
   zerodha_password?: string
+  pin?: string
   totp_secret?: string
   zerodha_user_id?: string
+  client_id?: string
   capital?: number
   auto_login?: boolean
 }
@@ -179,7 +202,9 @@ export interface UpdateAccountPayload {
   label?: string
   capital?: number
   zerodha_user_id?: string
+  client_id?: string
   zerodha_password?: string
+  pin?: string
   totp_secret?: string
   api_key?: string
   api_secret?: string

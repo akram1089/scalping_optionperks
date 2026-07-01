@@ -8,7 +8,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import {
-  computeHilegaMilega,
+  computeAladin,
   detectSignals,
   type IndicatorParams,
 } from './indicators'
@@ -60,8 +60,8 @@ export function TradingChart({
   const rsiChart = useRef<IChartApi | null>(null)
   const candleSeries = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const rsiSeries = useRef<ISeriesApi<'Line'> | null>(null)
-  const hilegaSeries = useRef<ISeriesApi<'Line'> | null>(null)
-  const milegaSeries = useRef<ISeriesApi<'Line'> | null>(null)
+  const signalSeries = useRef<ISeriesApi<'Line'> | null>(null)
+  const fastSeries = useRef<ISeriesApi<'Line'> | null>(null)
   const midSeries = useRef<ISeriesApi<'Line'> | null>(null)
   const priceLines = useRef<IPriceLine[]>([])
 
@@ -80,8 +80,8 @@ export function TradingChart({
     })
 
     rsiSeries.current = rsi.addLineSeries({ color: '#94A3B8', lineWidth: 1, title: 'RSI' })
-    hilegaSeries.current = rsi.addLineSeries({ color: '#2563EB', lineWidth: 2, title: 'Hilega' })
-    milegaSeries.current = rsi.addLineSeries({ color: '#D97706', lineWidth: 2, title: 'Milega' })
+    signalSeries.current = rsi.addLineSeries({ color: '#2563EB', lineWidth: 2, title: 'Aladin WMA' })
+    fastSeries.current = rsi.addLineSeries({ color: '#D97706', lineWidth: 2, title: 'Aladin Fast' })
     midSeries.current = rsi.addLineSeries({ color: '#CBD5E1', lineWidth: 1, lineStyle: 2, title: '50' })
 
     mainChart.current = main
@@ -155,15 +155,15 @@ export function TradingChart({
     }
 
     const closes = candles.map((c) => c.close)
-    const { rsi: rsiArr, hilega, milega } = computeHilegaMilega(closes, params)
+    const { rsi: rsiArr, aladinSignal, aladinFast } = computeAladin(closes, params)
     const toLine = (values: number[]) =>
       candles
         .map((c, i) => ({ time: c.time as Time, value: values[i] }))
         .filter((p) => !Number.isNaN(p.value))
 
     rsiSeries.current?.setData(toLine(rsiArr))
-    hilegaSeries.current?.setData(toLine(hilega))
-    milegaSeries.current?.setData(toLine(milega))
+    signalSeries.current?.setData(toLine(aladinSignal))
+    fastSeries.current?.setData(toLine(aladinFast))
     midSeries.current?.setData(candles.map((c) => ({ time: c.time as Time, value: params.midLevel })))
 
     mainChart.current?.timeScale().fitContent()
@@ -188,12 +188,12 @@ export function TradingChart({
       </div>
       <div ref={mainRef} />
       <div className="px-5 py-1 border-t border-border bg-bg-subtle/30">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">RSI · Hilega Milega</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-faint">RSI · Aladin</span>
       </div>
       <div ref={rsiRef} />
       <div className="px-5 py-2 border-t border-border flex flex-wrap gap-4 text-[10px] text-text-muted">
-        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-primary rounded" /> Hilega WMA</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-warn rounded" /> Milega EMA</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-primary rounded" /> Aladin WMA</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-warn rounded" /> Aladin Fast</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-down rounded" /> SL</span>
         <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-up rounded" /> Target</span>
       </div>

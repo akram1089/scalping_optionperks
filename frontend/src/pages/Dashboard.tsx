@@ -107,7 +107,7 @@ export function DashboardPage() {
         <div className="xl:col-span-2">
           <SectionCard
             title="Priority Signals"
-            description="Ranked by recency — Hilega Milega crossover triggers"
+            description="Ranked by recency — Aladin crossover triggers"
             icon={<TrendIcon />}
             action={
               <div className="flex gap-1">

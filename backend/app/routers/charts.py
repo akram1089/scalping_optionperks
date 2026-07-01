@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import get_current_user
 from app.broker.session import account_session_active, get_broker_for_account
-from app.broker.enctoken_client import EnctokenService
 from app.db import get_db
 from app.models import BrokerAccount, User
 from pydantic import BaseModel
@@ -121,12 +120,12 @@ async def get_chart_candles(
         from_dt = to_dt - timedelta(days=days)
         from_str = from_dt.strftime("%Y-%m-%d %H:%M:%S")
         to_str = to_dt.strftime("%Y-%m-%d %H:%M:%S")
-        raw = broker.historical_data(instrument_token, from_str, to_str, interval)
+        raw = broker.historical_data(exchange.upper(), tradingsymbol, from_str, to_str, interval)
     except Exception as exc:
         logger.exception("Chart candle fetch failed")
         raise HTTPException(status_code=502, detail=f"Failed to fetch candles: {exc}") from exc
     finally:
-        if isinstance(broker, EnctokenService):
+        if broker is not None:
             broker.close()
 
     candles: list[CandlePoint] = []

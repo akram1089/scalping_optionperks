@@ -102,7 +102,7 @@ export function ChartsPage() {
     <div className="p-6 lg:p-8 max-w-[1600px]">
       <PageHeader
         title="Charts"
-        subtitle="Live candles · Hilega Milega indicator · SL & target overlays"
+        subtitle="Live candles · Aladin indicator · SL & target overlays"
         action={
           <select value={interval} onChange={(e) => setInterval(e.target.value)} className="input-field w-auto">
             {INTERVALS.map((i) => (
@@ -142,13 +142,13 @@ export function ChartsPage() {
         <div className="space-y-4">
           <ChartSymbolPicker value={symbol} onChange={setSymbol} />
 
-          <SectionCard title="Custom Indicator" description="Hilega Milega — edit like TradingView inputs">
+          <SectionCard title="Custom Indicator" description="Aladin — edit like TradingView inputs">
             <div className="grid grid-cols-2 gap-3 text-sm">
               {(
                 [
                   ['rsiLength', 'RSI Length'],
-                  ['wmaLength', 'Hilega WMA'],
-                  ['emaLength', 'Milega EMA'],
+                  ['wmaLength', 'Aladin WMA'],
+                  ['emaLength', 'Aladin Fast'],
                   ['midLevel', 'Mid Level'],
                 ] as const
               ).map(([key, label]) => (

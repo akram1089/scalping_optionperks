@@ -1,4 +1,4 @@
-"""Hilega Milega signal pipeline — full decision flow."""
+"""Aladin signal pipeline — full decision flow."""
 
 import logging
 from datetime import UTC, datetime, time, timedelta
@@ -95,8 +95,8 @@ class SignalPipeline:
             price=Decimal(str(price)),
             indicator_snapshot_json={
                 "rsi": snap.rsi,
-                "hilega": snap.hilega,
-                "milega": snap.milega,
+                "aladin_signal": snap.aladin_signal,
+                "aladin_fast": snap.aladin_fast,
                 "atr": atr,
             },
             paper=strategy.paper_mode,
@@ -171,20 +171,17 @@ class SignalPipeline:
         if not account:
             return self._mock_candles()
 
+        exchange = "NFO" if strategy.instrument_type in ("futures", "options") else "NSE"
         try:
-            kite = get_broker_for_account(account)
-            instruments = kite.instruments("NSE")
-            token_id = None
-            for inst in instruments:
-                if inst["tradingsymbol"] == strategy.symbol:
-                    token_id = inst["instrument_token"]
-                    break
-            if not token_id:
-                return self._mock_candles()
-
-            to_date = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
-            from_date = (datetime.now(IST) - timedelta(days=5)).strftime("%Y-%m-%d %H:%M:%S")
-            return kite.historical_data(token_id, from_date, to_date, strategy.entry_tf)
+            broker = get_broker_for_account(account)
+            try:
+                to_date = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+                from_date = (datetime.now(IST) - timedelta(days=5)).strftime("%Y-%m-%d %H:%M:%S")
+                return broker.historical_data(
+                    exchange, strategy.symbol, from_date, to_date, strategy.entry_tf
+                )
+            finally:
+                broker.close()
         except Exception:
             logger.exception("Failed to fetch candles, using mock data")
             return self._mock_candles()
@@ -206,18 +203,17 @@ class SignalPipeline:
         account = await self._first_connected_account(strategy)
         if not account:
             return True
+        exchange = "NFO" if strategy.instrument_type in ("futures", "options") else "NSE"
         try:
-            kite = get_broker_for_account(account)
-            instruments = kite.instruments("NSE")
-            token_id = next(
-                (i["instrument_token"] for i in instruments if i["tradingsymbol"] == strategy.symbol),
-                None,
-            )
-            if not token_id:
-                return True
-            to_date = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
-            from_date = (datetime.now(IST) - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
-            htf_candles = kite.historical_data(token_id, from_date, to_date, strategy.htf)
+            broker = get_broker_for_account(account)
+            try:
+                to_date = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+                from_date = (datetime.now(IST) - timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+                htf_candles = broker.historical_data(
+                    exchange, strategy.symbol, from_date, to_date, strategy.htf
+                )
+            finally:
+                broker.close()
             closes = np.array([c["close"] for c in htf_candles])
             if len(closes) < 30:
                 return True
@@ -225,8 +221,8 @@ class SignalPipeline:
             if not snap:
                 return True
             if side == "BUY":
-                return snap.milega > snap.hilega
-            return snap.milega < snap.hilega
+                return snap.aladin_fast > snap.aladin_signal
+            return snap.aladin_fast < snap.aladin_signal
         except Exception:
             return True
 

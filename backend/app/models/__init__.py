@@ -50,6 +50,9 @@ class BrokerAccount(Base):
     password_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     totp_secret_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     zerodha_user_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    client_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    pin_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     capital: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("100000"))
     auto_login: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -70,7 +73,7 @@ class Strategy(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(100))
-    instrument_type: Mapped[str] = mapped_column(String(50), default="equity_intraday")
+    instrument_type: Mapped[str] = mapped_column(String(50), default="futures")
     symbol: Mapped[str] = mapped_column(String(50))
     entry_tf: Mapped[str] = mapped_column(String(10), default="5minute")
     htf: Mapped[str] = mapped_column(String(10), default="15minute")
@@ -136,7 +139,7 @@ class Order(Base):
     strategy_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True
     )
-    kite_order_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    broker_order_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     side: Mapped[str] = mapped_column(String(10))
     symbol: Mapped[str] = mapped_column(String(50))
     qty: Mapped[int] = mapped_column(Integer)

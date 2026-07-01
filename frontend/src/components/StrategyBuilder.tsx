@@ -16,9 +16,7 @@ const INDEX_UNDERLYINGS = [
   { id: 'NIFTYNXT50', label: 'Nifty Next 50' },
 ]
 
-const FALLBACK_SYMBOLS = ['RELIANCE', 'INFY', 'SBIN', 'TCS', 'HDFCBANK', 'ICICIBANK']
-
-type InstrumentMode = 'equity_intraday' | 'futures' | 'options'
+type InstrumentMode = 'futures' | 'options'
 
 function formatExpiry(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -26,41 +24,19 @@ function formatExpiry(d: string) {
 
 export function StrategyBuilder({ accounts }: Props) {
   const qc = useQueryClient()
-  const [instrumentType, setInstrumentType] = useState<InstrumentMode>('equity_intraday')
+  const [instrumentType, setInstrumentType] = useState<InstrumentMode>('futures')
   const [underlying, setUnderlying] = useState('NIFTY')
-  const [symbolSearch, setSymbolSearch] = useState('')
-  const [symbol, setSymbol] = useState('RELIANCE')
+  const [symbol, setSymbol] = useState('')
   const [expiry, setExpiry] = useState('')
   const [optionType, setOptionType] = useState<'CE' | 'PE'>('CE')
   const [strikeSymbol, setStrikeSymbol] = useState('')
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY')
   const [qty, setQty] = useState(1)
 
-  const isEquity = instrumentType === 'equity_intraday'
   const isFutures = instrumentType === 'futures'
   const isOptions = instrumentType === 'options'
 
-  const {
-    data: equityInstruments = [],
-    isLoading: equityLoading,
-    isFetching: equityFetching,
-  } = useQuery({
-    queryKey: ['equity-instruments', symbolSearch],
-    queryFn: () =>
-      api.searchInstruments({
-        exchange: 'NSE',
-        instrument_type: 'EQ',
-        q: symbolSearch || undefined,
-        limit: 200,
-      }),
-    staleTime: 5 * 60_000,
-    refetchOnMount: 'always',
-  })
-
-  const {
-    data: futureExpiries = [],
-    isLoading: futExpLoading,
-  } = useQuery({
+  const { data: futureExpiries = [], isLoading: futExpLoading } = useQuery({
     queryKey: ['expiries', underlying, 'FUT'],
     queryFn: () => api.getInstrumentExpiries(underlying, 'FUT'),
     enabled: isFutures,
@@ -68,10 +44,7 @@ export function StrategyBuilder({ accounts }: Props) {
     refetchOnMount: 'always',
   })
 
-  const {
-    data: futureContracts = [],
-    isLoading: futContractsLoading,
-  } = useQuery({
+  const { data: futureContracts = [], isLoading: futContractsLoading } = useQuery({
     queryKey: ['futures', underlying, expiry],
     queryFn: () =>
       api.searchInstruments({
@@ -86,10 +59,7 @@ export function StrategyBuilder({ accounts }: Props) {
     refetchOnMount: 'always',
   })
 
-  const {
-    data: optionExpiries = [],
-    isLoading: optExpLoading,
-  } = useQuery({
+  const { data: optionExpiries = [], isLoading: optExpLoading } = useQuery({
     queryKey: ['expiries', underlying, 'CE,PE'],
     queryFn: () => api.getInstrumentExpiries(underlying, 'CE,PE'),
     enabled: isOptions,
@@ -97,10 +67,7 @@ export function StrategyBuilder({ accounts }: Props) {
     refetchOnMount: 'always',
   })
 
-  const {
-    data: strikeContracts = [],
-    isLoading: strikesLoading,
-  } = useQuery({
+  const { data: strikeContracts = [], isLoading: strikesLoading } = useQuery({
     queryKey: ['strikes', underlying, expiry, optionType],
     queryFn: () => api.getInstrumentStrikes(underlying, expiry, optionType),
     enabled: isOptions && !!expiry,
@@ -108,27 +75,16 @@ export function StrategyBuilder({ accounts }: Props) {
     refetchOnMount: 'always',
   })
 
-  const equitySymbols = useMemo(() => {
-    if (equityInstruments.length > 0) return equityInstruments.map((i) => i.tradingsymbol)
-    return FALLBACK_SYMBOLS
-  }, [equityInstruments])
-
   const handleInstrumentTypeChange = useCallback(
     (type: InstrumentMode) => {
       setInstrumentType(type)
       setExpiry('')
       setStrikeSymbol('')
-      setSymbolSearch('')
-      if (type === 'equity_intraday') {
-        setSymbol(FALLBACK_SYMBOLS[0])
-        qc.invalidateQueries({ queryKey: ['equity-instruments'] })
+      setSymbol('')
+      if (type === 'futures') {
+        qc.invalidateQueries({ queryKey: ['expiries', underlying, 'FUT'] })
       } else {
-        setSymbol('')
-        if (type === 'futures') {
-          qc.invalidateQueries({ queryKey: ['expiries', underlying, 'FUT'] })
-        } else {
-          qc.invalidateQueries({ queryKey: ['expiries', underlying, 'CE,PE'] })
-        }
+        qc.invalidateQueries({ queryKey: ['expiries', underlying, 'CE,PE'] })
       }
     },
     [qc, underlying],
@@ -141,22 +97,10 @@ export function StrategyBuilder({ accounts }: Props) {
       setStrikeSymbol('')
       setSymbol('')
       qc.invalidateQueries({ queryKey: ['expiries', value] })
-      qc.invalidateQueries({ queryKey: ['futures', value] })
-      qc.invalidateQueries({ queryKey: ['strikes', value] })
     },
     [qc],
   )
 
-  // Sync equity symbol when list loads or type switches to equity
-  useEffect(() => {
-    if (!isEquity) return
-    if (equitySymbols.length === 0) return
-    if (!equitySymbols.includes(symbol)) {
-      setSymbol(equitySymbols[0])
-    }
-  }, [isEquity, equitySymbols, symbol])
-
-  // Futures: pick first expiry when none selected
   useEffect(() => {
     if (!isFutures || futExpLoading) return
     if (futureExpiries.length > 0 && !expiry) {
@@ -164,7 +108,6 @@ export function StrategyBuilder({ accounts }: Props) {
     }
   }, [isFutures, futureExpiries, expiry, futExpLoading])
 
-  // Options: pick first expiry when none selected
   useEffect(() => {
     if (!isOptions || optExpLoading) return
     if (optionExpiries.length > 0 && !expiry) {
@@ -172,7 +115,6 @@ export function StrategyBuilder({ accounts }: Props) {
     }
   }, [isOptions, optionExpiries, expiry, optExpLoading])
 
-  // Futures: pick contract when contracts load
   useEffect(() => {
     if (!isFutures || futContractsLoading) return
     if (futureContracts.length === 0) return
@@ -182,7 +124,6 @@ export function StrategyBuilder({ accounts }: Props) {
     }
   }, [isFutures, futureContracts, symbol, futContractsLoading])
 
-  // Options: pick strike when chain loads
   useEffect(() => {
     if (!isOptions || strikesLoading) return
     if (strikeContracts.length === 0) {
@@ -199,24 +140,19 @@ export function StrategyBuilder({ accounts }: Props) {
     if (isOptions) setOptionType(side === 'BUY' ? 'CE' : 'PE')
   }, [side, isOptions])
 
-  const equitySelectValue = equitySymbols.includes(symbol) ? symbol : equitySymbols[0] ?? ''
-
   const selectedInstrument: InstrumentMaster | undefined = useMemo(() => {
-    if (isEquity) return equityInstruments.find((i) => i.tradingsymbol === equitySelectValue)
     if (isFutures) return futureContracts.find((i) => i.tradingsymbol === symbol)
     if (isOptions) return strikeContracts.find((i) => i.tradingsymbol === strikeSymbol)
     return undefined
-  }, [isEquity, isFutures, isOptions, equityInstruments, futureContracts, strikeContracts, equitySelectValue, symbol, strikeSymbol])
+  }, [isFutures, isOptions, futureContracts, strikeContracts, symbol, strikeSymbol])
 
-  const finalSymbol = isOptions ? strikeSymbol : isEquity ? equitySelectValue : symbol
+  const finalSymbol = isOptions ? strikeSymbol : symbol
   const lotSize = selectedInstrument?.lot_size ?? 1
 
   const create = useMutation({
     mutationFn: () =>
       api.createStrategy({
-        name: isEquity
-          ? `${finalSymbol} ${instrumentType}`
-          : `${INDEX_LABELS[underlying] ?? underlying} ${finalSymbol}`,
+        name: `${INDEX_LABELS[underlying] ?? underlying} ${finalSymbol}`,
         symbol: finalSymbol,
         instrument_type: instrumentType,
         paper_mode: true,
@@ -225,10 +161,8 @@ export function StrategyBuilder({ accounts }: Props) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['strategies'] }),
   })
 
-  const equityBusy = equityLoading || equityFetching
-
   return (
-    <SectionCard title="Strategy Builder" description="Symbols from daily Zerodha instrument master">
+    <SectionCard title="Strategy Builder" description="Index F&O only — Nifty, Bank Nifty, and other index derivatives">
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <Field label="Instrument">
           <select
@@ -236,51 +170,22 @@ export function StrategyBuilder({ accounts }: Props) {
             onChange={(e) => handleInstrumentTypeChange(e.target.value as InstrumentMode)}
             className="input-field"
           >
-            <option value="equity_intraday">Equity Intraday (NSE)</option>
             <option value="futures">Futures (NFO)</option>
             <option value="options">Options (NFO)</option>
           </select>
         </Field>
 
-        {(isFutures || isOptions) && (
-          <Field label="Underlying">
-            <select
-              value={underlying}
-              onChange={(e) => handleUnderlyingChange(e.target.value)}
-              className="input-field"
-            >
-              {INDEX_UNDERLYINGS.map((u) => (
-                <option key={u.id} value={u.id}>{u.label}</option>
-              ))}
-            </select>
-          </Field>
-        )}
-
-        {isEquity && (
-          <Field label="Search Symbol" className="lg:col-span-2">
-            <input
-              type="text"
-              placeholder="Type to filter…"
-              value={symbolSearch}
-              onChange={(e) => setSymbolSearch(e.target.value)}
-              className="input-field mb-2"
-            />
-            <select
-              value={equitySelectValue}
-              onChange={(e) => setSymbol(e.target.value)}
-              className="input-field"
-              disabled={equityBusy && equityInstruments.length === 0}
-            >
-              {equityBusy && equityInstruments.length === 0 ? (
-                <option value="">Loading symbols…</option>
-              ) : (
-                equitySymbols.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))
-              )}
-            </select>
-          </Field>
-        )}
+        <Field label="Underlying">
+          <select
+            value={underlying}
+            onChange={(e) => handleUnderlyingChange(e.target.value)}
+            className="input-field"
+          >
+            {INDEX_UNDERLYINGS.map((u) => (
+              <option key={u.id} value={u.id}>{u.label}</option>
+            ))}
+          </select>
+        </Field>
 
         {isFutures && (
           <>
@@ -415,11 +320,8 @@ export function StrategyBuilder({ accounts }: Props) {
         {finalSymbol && (
           <span className="badge bg-primary-50 text-primary font-mono text-[10px]">{finalSymbol}</span>
         )}
-        {selectedInstrument?.name && (
-          <span className="badge bg-bg-subtle text-text-muted truncate max-w-[180px]">{selectedInstrument.name}</span>
-        )}
         <span className="badge bg-warn/10 text-warn">Paper Mode</span>
-        <span className="badge bg-bg-subtle text-text-muted">5m / 15m TF</span>
+        <span className="badge bg-bg-subtle text-text-muted">Aladin · 5m / 15m</span>
       </div>
 
       <button
@@ -431,16 +333,6 @@ export function StrategyBuilder({ accounts }: Props) {
       </button>
       {accounts.length === 0 && (
         <p className="text-xs text-warn mt-2 text-center">Link a broker account first → Accounts</p>
-      )}
-      {isEquity && !equityBusy && equityInstruments.length === 0 && (
-        <p className="text-xs text-text-faint mt-2 text-center">
-          No equity symbols in DB — run instrument sync in Settings
-        </p>
-      )}
-      {isOptions && !strikesLoading && strikeContracts.length === 0 && expiry && (
-        <p className="text-xs text-text-faint mt-2 text-center">
-          No strikes for {INDEX_LABELS[underlying] ?? underlying} — run instrument sync in Settings
-        </p>
       )}
       {create.isSuccess && (
         <p className="text-xs text-up mt-2 text-center">Strategy created — start it in the list below</p>

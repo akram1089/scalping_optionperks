@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     instrument_sync_batch_size: int = 1000
 
     default_paper_mode: bool = True
+    max_accounts_per_user: int = 5
+
+    fyers_redirect_url: str = "http://localhost:8000/accounts/fyers-callback"
+    ventura_redirect_url: str = "http://localhost:8000/accounts/ventura-callback"
 
     @property
     def cors_origin_list(self) -> list[str]:

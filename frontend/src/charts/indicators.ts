@@ -1,4 +1,4 @@
-/** Hilega Milega indicators — mirrors backend app/engine/indicators.py */
+/** Aladin indicators — mirrors backend app/engine/indicators.py */
 
 export interface IndicatorParams {
   rsiLength: number
@@ -64,32 +64,35 @@ export function computeEma(values: number[], length: number): number[] {
   return out
 }
 
-export function computeHilegaMilega(closes: number[], params: IndicatorParams) {
+export function computeAladin(closes: number[], params: IndicatorParams) {
   const rsi = computeRsi(closes, params.rsiLength)
-  const hilega = computeWma(rsi, params.wmaLength)
-  const milega = computeEma(rsi, params.emaLength)
-  return { rsi, hilega, milega }
+  const aladinSignal = computeWma(rsi, params.wmaLength)
+  const aladinFast = computeEma(rsi, params.emaLength)
+  return { rsi, aladinSignal, aladinFast, hilega: aladinSignal, milega: aladinFast }
 }
+
+/** @deprecated Use computeAladin */
+export const computeHilegaMilega = computeAladin
 
 export interface SignalMarker {
   time: number
   side: 'BUY' | 'SELL'
 }
 
-/** Detect Hilega Milega crossover signals on chart bars */
+/** Detect Aladin crossover signals on chart bars */
 export function detectSignals(
   times: number[],
   closes: number[],
   params: IndicatorParams,
 ): SignalMarker[] {
-  const { hilega, milega } = computeHilegaMilega(closes, params)
+  const { aladinSignal, aladinFast } = computeAladin(closes, params)
   const signals: SignalMarker[] = []
   for (let i = 1; i < closes.length; i++) {
-    if (Number.isNaN(hilega[i]) || Number.isNaN(milega[i])) continue
-    const pm = milega[i - 1]
-    const ph = hilega[i - 1]
-    const m = milega[i]
-    const h = hilega[i]
+    if (Number.isNaN(aladinSignal[i]) || Number.isNaN(aladinFast[i])) continue
+    const pm = aladinFast[i - 1]
+    const ph = aladinSignal[i - 1]
+    const m = aladinFast[i]
+    const h = aladinSignal[i]
     const longCross = pm <= ph && m > h && m > params.midLevel && h > params.midLevel
     const shortCross = pm >= ph && m < h && m < params.midLevel && h < params.midLevel
     if (longCross) signals.push({ time: times[i], side: 'BUY' })

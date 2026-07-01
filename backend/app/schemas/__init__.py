@@ -37,12 +37,15 @@ class UserResponse(BaseModel):
 
 class BrokerAccountCreate(BaseModel):
     label: str
-    auth_mode: Literal["kite_connect", "enctoken"] = "kite_connect"
+    broker: Literal["zerodha", "angel_one", "fyers", "kotak", "ventura"] = "zerodha"
+    auth_mode: Literal["kite_connect", "enctoken", "smartapi", "oauth", "totp", "sso"] = "kite_connect"
     api_key: str | None = None
     api_secret: str | None = None
     zerodha_password: str | None = None
+    pin: str | None = None
     totp_secret: str | None = None
     zerodha_user_id: str | None = None
+    client_id: str | None = None
     capital: Decimal = Decimal("100000")
     auto_login: bool = False
 
@@ -51,12 +54,27 @@ class BrokerAccountUpdate(BaseModel):
     label: str | None = None
     capital: Decimal | None = None
     zerodha_user_id: str | None = None
+    client_id: str | None = None
     zerodha_password: str | None = None
+    pin: str | None = None
     totp_secret: str | None = None
     api_key: str | None = None
     api_secret: str | None = None
     auto_login: bool | None = None
     enabled: bool | None = None
+
+
+class BrokerListResponse(BaseModel):
+    slug: str
+    label: str
+    auth_modes: list[str]
+    required_fields: dict[str, list[str]]
+    connect_type: str
+
+
+class AccountLimitsResponse(BaseModel):
+    max_accounts: int
+    current_count: int
 
 
 class BrokerMarginsInfo(BaseModel):
@@ -95,12 +113,23 @@ class EnctokenConnectRequest(BaseModel):
     twofa_code: str | None = None
 
 
+class FyersCallbackRequest(BaseModel):
+    auth_code: str
+    state: str | None = None
+
+
+class VenturaCallbackRequest(BaseModel):
+    request_token: str
+    state: str | None = None
+
+
 class BrokerAccountResponse(BaseModel):
     id: UUID
     label: str
     broker: str
     auth_mode: str = "kite_connect"
     zerodha_user_id: str | None
+    client_id: str | None = None
     capital: Decimal
     auto_login: bool
     enabled: bool
@@ -130,7 +159,7 @@ class AtrBand(BaseModel):
 
 class StrategyCreate(BaseModel):
     name: str
-    instrument_type: str = "equity_intraday"
+    instrument_type: str = "futures"
     symbol: str
     entry_tf: str = "5minute"
     htf: str = "15minute"

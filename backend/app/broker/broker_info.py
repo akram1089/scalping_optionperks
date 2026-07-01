@@ -2,8 +2,7 @@
 
 from typing import Any
 
-from app.broker.enctoken_client import EnctokenService
-from app.broker.kite_client import KiteService
+from app.broker.base import BrokerService
 
 
 def _dec(value: Any) -> float:
@@ -14,7 +13,7 @@ def _dec(value: Any) -> float:
 
 
 def _equity_margins(margins: dict[str, Any]) -> dict[str, float]:
-    equity = margins.get("equity") or {}
+    equity = margins.get("equity") or margins
     available = equity.get("available") or {}
     utilised = equity.get("utilised") or {}
     return {
@@ -40,7 +39,7 @@ def _position_summary(positions: dict[str, Any]) -> dict[str, int | float]:
     }
 
 
-def fetch_live_info(broker: KiteService | EnctokenService) -> dict[str, Any]:
+def fetch_live_info(broker: BrokerService) -> dict[str, Any]:
     profile = broker.profile()
     margins_raw = broker.margins()
     equity = _equity_margins(margins_raw)
@@ -52,12 +51,14 @@ def fetch_live_info(broker: KiteService | EnctokenService) -> dict[str, Any]:
         "user_id": profile.get("user_id") or profile.get("user_name"),
         "user_name": profile.get("user_name"),
         "email": profile.get("email"),
-        "broker": profile.get("broker"),
+        "broker": profile.get("broker") or getattr(broker, "broker_slug", None),
         "exchanges": profile.get("exchanges") or [],
         "products": profile.get("products") or [],
         "order_types": profile.get("order_types") or [],
         "margins": equity,
         "holdings_count": len(holdings),
-        "holdings_value": round(sum(_dec(h.get("last_price", 0)) * _dec(h.get("quantity", 0)) for h in holdings), 2),
+        "holdings_value": round(
+            sum(_dec(h.get("last_price", 0)) * _dec(h.get("quantity", 0)) for h in holdings), 2
+        ),
         "positions": pos_summary,
     }

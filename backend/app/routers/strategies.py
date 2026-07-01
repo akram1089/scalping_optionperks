@@ -35,6 +35,14 @@ from app.schemas import (
 router = APIRouter(tags=["strategies", "dashboard"])
 
 
+def _reject_equity(instrument_type: str | None) -> None:
+    if instrument_type == "equity_intraday":
+        raise HTTPException(
+            status_code=400,
+            detail="Equity strategies are not supported — use index futures or options",
+        )
+
+
 async def _strategy_response(db: AsyncSession, strategy: Strategy) -> StrategyResponse:
     result = await db.execute(
         select(StrategyAccount.broker_account_id).where(
@@ -88,6 +96,7 @@ async def create_strategy(
         body.params_json = {"rsi_length": 14, "wma_length": 21, "ema_length": 3, "mid_level": 50}
     if not body.atr_band_json:
         body.atr_band_json = {"min_atr": 0.5, "max_atr": 5.0}
+    _reject_equity(body.instrument_type)
 
     strategy = Strategy(
         user_id=user.id,

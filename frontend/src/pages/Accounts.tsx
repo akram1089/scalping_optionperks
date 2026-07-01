@@ -1,18 +1,29 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, asNumber, type BrokerAccount, type BrokerLiveInfo, type UpdateAccountPayload } from '../api/client'
+import { api, asNumber, type BrokerAccount, type BrokerLiveInfo, type BrokerSlug, type UpdateAccountPayload } from '../api/client'
 import { PageHeader, SectionCard, StatCard } from '../components/ui/PageHeader'
+
+const BROKER_LABELS: Record<BrokerSlug, string> = {
+  zerodha: 'Zerodha',
+  angel_one: 'Angel One',
+  fyers: 'Fyers',
+  kotak: 'Kotak',
+  ventura: 'Ventura',
+}
 
 type AuthMode = 'kite_connect' | 'enctoken'
 
 const emptyForm = {
   label: '',
+  broker: 'zerodha' as BrokerSlug,
   auth_mode: 'enctoken' as AuthMode,
   api_key: '',
   api_secret: '',
   zerodha_password: '',
+  pin: '',
   totp_secret: '',
   zerodha_user_id: '',
+  client_id: '',
   capital: 100000,
   auto_login: true,
 }
@@ -24,6 +35,8 @@ function formatRupee(n: number) {
 export function AccountsPage() {
   const qc = useQueryClient()
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: api.getAccounts })
+  const { data: limits } = useQuery({ queryKey: ['account-limits'], queryFn: api.getAccountLimits })
+  const atAccountLimit = limits ? limits.current_count >= limits.max_accounts : false
   const [showForm, setShowForm] = useState(false)
   const [enctokenModal, setEnctokenModal] = useState<string | null>(null)
   const [enctokenPaste, setEnctokenPaste] = useState('')
@@ -37,33 +50,44 @@ export function AccountsPage() {
     mutationFn: () =>
       api.addAccount({
         label: form.label,
-        auth_mode: form.auth_mode,
-        api_key: form.auth_mode === 'kite_connect' ? form.api_key : undefined,
-        api_secret: form.auth_mode === 'kite_connect' ? form.api_secret : undefined,
-        zerodha_password: form.auth_mode === 'enctoken' ? form.zerodha_password : undefined,
+        broker: form.broker,
+        auth_mode: form.broker === 'zerodha' ? form.auth_mode : undefined,
+        api_key: form.api_key || undefined,
+        api_secret: form.api_secret || undefined,
+        zerodha_password: form.zerodha_password || undefined,
+        pin: form.pin || undefined,
         totp_secret: form.totp_secret || undefined,
         zerodha_user_id: form.zerodha_user_id || undefined,
+        client_id: form.client_id || undefined,
         capital: form.capital,
         auto_login: form.auto_login,
       }),
     onSuccess: async (account) => {
       qc.invalidateQueries({ queryKey: ['accounts'] })
+      qc.invalidateQueries({ queryKey: ['account-limits'] })
       setShowForm(false)
       setForm(emptyForm)
-      if (
-        account.auth_mode === 'enctoken' &&
-        form.totp_secret &&
-        form.zerodha_password &&
-        !account.session_active
-      ) {
+      const needsLogin = !account.session_active
+      if (needsLogin) {
         try {
-          await api.loginWithTotp(account.id)
+          if (account.broker === 'zerodha' && account.auth_mode === 'kite_connect') {
+            const { login_url } = await api.connectAccount(account.id)
+            window.open(login_url, '_blank')
+          } else if (['angel_one', 'kotak', 'ventura'].includes(account.broker) && account.totp_configured) {
+            await api.brokerLogin(account.id)
+          } else if (account.broker === 'fyers') {
+            const { login_url } = await api.connectAccount(account.id)
+            window.open(login_url, '_blank')
+          } else if (account.broker === 'zerodha' && account.auth_mode === 'enctoken') {
+            await api.loginWithTotp(account.id)
+          }
           qc.invalidateQueries({ queryKey: ['accounts'] })
         } catch (err) {
           setLoginError((err as Error).message)
         }
       }
     },
+    onError: (err: Error) => setLoginError(err.message),
   })
 
   const connect = useMutation({
@@ -126,16 +150,20 @@ export function AccountsPage() {
     <div className="p-6 lg:p-8 max-w-[1000px]">
       <PageHeader
         title="Broker Accounts"
-        subtitle="Link Zerodha via enctoken (TOTP auto-login) or Kite Connect API"
+        subtitle={`Up to ${limits?.max_accounts ?? 5} accounts — Zerodha, Angel One, Fyers, Kotak, Ventura`}
         action={
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-            {showForm ? 'Cancel' : '+ Add Account'}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary"
+            disabled={atAccountLimit && !showForm}
+          >
+            {showForm ? 'Cancel' : atAccountLimit ? 'Limit reached (5/5)' : '+ Add Account'}
           </button>
         }
       />
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <StatCard label="Total Accounts" value={accounts.length} accent="slate" />
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <StatCard label="Accounts" value={`${accounts.length}/${limits?.max_accounts ?? 5}`} accent="slate" />
         <StatCard label="Connected" value={connected} accent="green" />
         <StatCard label="Needs Login" value={accounts.length - connected} accent="amber" />
       </div>
@@ -144,56 +172,91 @@ export function AccountsPage() {
         <div className="mb-4 p-3 rounded-btn bg-down/10 text-down text-sm">{loginError}</div>
       )}
 
-      {showForm && (
+      {showForm && !atAccountLimit && (
         <SectionCard
-          title="Add Zerodha Account (enctoken + TOTP)"
-          description="Password and TOTP secret are encrypted at rest. Morning auto-login runs at 08:45 IST."
+          title="Add Broker Account"
+          description="Credentials are encrypted at rest. Morning auto-login runs at 08:45 IST where supported."
         >
           <form onSubmit={(e) => { e.preventDefault(); addAccount.mutate() }} className="grid sm:grid-cols-2 gap-4">
             <input placeholder="Account label" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="input-field" required />
             <input placeholder="Capital (₹)" type="number" value={form.capital} onChange={(e) => setForm({ ...form, capital: +e.target.value })} className="input-field" />
             <select
-              value={form.auth_mode}
-              onChange={(e) => setForm({ ...form, auth_mode: e.target.value as AuthMode })}
+              value={form.broker}
+              onChange={(e) => setForm({ ...form, broker: e.target.value as BrokerSlug, auth_mode: 'enctoken' })}
               className="input-field sm:col-span-2"
             >
-              <option value="enctoken">enctoken — TOTP auto-login (no API subscription)</option>
-              <option value="kite_connect">Kite Connect — official API</option>
+              {(Object.keys(BROKER_LABELS) as BrokerSlug[]).map((b) => (
+                <option key={b} value={b}>{BROKER_LABELS[b]}</option>
+              ))}
             </select>
-            <input
-              placeholder="Zerodha User ID (e.g. THC219)"
-              value={form.zerodha_user_id}
-              onChange={(e) => setForm({ ...form, zerodha_user_id: e.target.value })}
-              className="input-field"
-              required
-            />
-            {form.auth_mode === 'enctoken' ? (
+
+            {form.broker === 'zerodha' && (
+              <select
+                value={form.auth_mode}
+                onChange={(e) => setForm({ ...form, auth_mode: e.target.value as AuthMode })}
+                className="input-field sm:col-span-2"
+              >
+                <option value="enctoken">enctoken — TOTP auto-login</option>
+                <option value="kite_connect">Kite Connect — official API</option>
+              </select>
+            )}
+
+            {(form.broker === 'zerodha' || form.broker === 'kotak') && (
               <input
-                placeholder="Zerodha Password"
+                placeholder={form.broker === 'kotak' ? 'Registered mobile number' : 'Zerodha User ID'}
+                value={form.zerodha_user_id}
+                onChange={(e) => setForm({ ...form, zerodha_user_id: e.target.value })}
+                className="input-field"
+              />
+            )}
+
+            {(form.broker === 'angel_one' || form.broker === 'kotak' || form.broker === 'ventura') && (
+              <input
+                placeholder={form.broker === 'angel_one' ? 'Client code' : 'UCC / Client ID'}
+                value={form.client_id}
+                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+                className="input-field"
+              />
+            )}
+
+            {(form.broker === 'zerodha' && form.auth_mode === 'kite_connect') || form.broker === 'fyers' || form.broker === 'ventura' ? (
+              <>
+                <input placeholder={form.broker === 'fyers' ? 'App ID' : 'API / App Key'} value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} className="input-field" required />
+                <input placeholder="API / App Secret" type="password" value={form.api_secret} onChange={(e) => setForm({ ...form, api_secret: e.target.value })} className="input-field" required />
+              </>
+            ) : null}
+
+            {form.broker === 'angel_one' && (
+              <input placeholder="API Key" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} className="input-field sm:col-span-2" required />
+            )}
+
+            {form.broker === 'kotak' && (
+              <input placeholder="Consumer key (from Neo Trade API)" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} className="input-field sm:col-span-2" required />
+            )}
+
+            {(form.broker === 'zerodha' && form.auth_mode === 'enctoken') || form.broker === 'kotak' ? (
+              <input
+                placeholder={form.broker === 'kotak' ? 'MPIN' : 'Zerodha Password'}
                 type="password"
                 value={form.zerodha_password}
                 onChange={(e) => setForm({ ...form, zerodha_password: e.target.value })}
                 className="input-field"
                 required
               />
-            ) : (
-              <>
-                <input placeholder="API Key" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} className="input-field sm:col-span-2" required />
-                <input placeholder="API Secret" type="password" value={form.api_secret} onChange={(e) => setForm({ ...form, api_secret: e.target.value })} className="input-field sm:col-span-2" required />
-              </>
+            ) : null}
+
+            {form.broker === 'angel_one' && (
+              <input placeholder="MPIN" type="password" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value })} className="input-field" required />
             )}
+
             <div className="sm:col-span-2 space-y-1">
               <input
-                placeholder="TOTP Secret (base32 key from authenticator setup)"
+                placeholder="TOTP Secret (base32)"
                 type="password"
                 value={form.totp_secret}
                 onChange={(e) => setForm({ ...form, totp_secret: e.target.value })}
                 className="input-field w-full"
-                required={form.auth_mode === 'enctoken'}
               />
-              <p className="text-xs text-text-muted px-1">
-                Profile → Password &amp; Security → External TOTP → copy the secret key.
-              </p>
             </div>
             <label className="sm:col-span-2 flex items-start gap-2 text-sm text-text-muted">
               <input type="checkbox" className="mt-1" checked={form.auto_login} onChange={(e) => setForm({ ...form, auto_login: e.target.checked })} />
@@ -256,9 +319,13 @@ export function AccountsPage() {
             }}
             onEdit={() => setEditAccount(a)}
             onReconnect={() => {
-              if (a.auth_mode === 'enctoken' && a.totp_configured) {
+              if (a.broker === 'zerodha' && a.auth_mode === 'enctoken' && a.totp_configured) {
                 loginWithTotp.mutate(a.id)
-              } else if (a.auth_mode === 'kite_connect') {
+              } else if (a.broker === 'zerodha' && a.auth_mode === 'kite_connect') {
+                connect.mutate(a.id)
+              } else if (['angel_one', 'kotak', 'ventura'].includes(a.broker)) {
+                api.brokerLogin(a.id).then(() => qc.invalidateQueries({ queryKey: ['accounts'] })).catch((e) => setLoginError(String(e)))
+              } else if (a.broker === 'fyers') {
                 connect.mutate(a.id)
               } else {
                 setEnctokenModal(a.id)
@@ -320,9 +387,10 @@ function AccountCard({
           <div className="min-w-0">
             <h3 className="font-semibold">{a.label}</h3>
             <p className="text-sm text-text-muted truncate">
-              {formatRupee(asNumber(a.capital))} capital · {a.auth_mode === 'enctoken' ? 'enctoken' : 'Kite Connect'}
+              <span className="font-medium">{BROKER_LABELS[a.broker] ?? a.broker}</span>
+              {' · '}{formatRupee(asNumber(a.capital))} capital
               {a.zerodha_user_id ? ` · ${a.zerodha_user_id}` : ''}
-              {a.auto_login && a.totp_configured ? ' · auto-login' : ''}
+              {a.client_id ? ` · ${a.client_id}` : ''}
             </p>
           </div>
         </button>
@@ -342,16 +410,24 @@ function AccountCard({
             </>
           ) : (
             <>
-              {a.auth_mode === 'enctoken' && a.totp_configured && (
+              {a.broker === 'zerodha' && a.auth_mode === 'enctoken' && a.totp_configured && (
                 <button type="button" onClick={onLoginTotp} disabled={loadingReconnect} className="btn-primary py-2 text-sm">
                   Login with TOTP
                 </button>
               )}
-              {a.auth_mode === 'enctoken' && (
+              {a.broker === 'zerodha' && a.auth_mode === 'enctoken' && (
                 <button type="button" onClick={onPasteEnctoken} className="btn-secondary py-2 text-sm">Paste enctoken</button>
               )}
-              {a.auth_mode === 'kite_connect' && (
+              {a.broker === 'zerodha' && a.auth_mode === 'kite_connect' && (
                 <button type="button" onClick={onConnectKite} className="btn-primary py-2 text-sm">Connect</button>
+              )}
+              {a.broker === 'fyers' && (
+                <button type="button" onClick={onConnectKite} className="btn-primary py-2 text-sm">OAuth Connect</button>
+              )}
+              {['angel_one', 'kotak', 'ventura'].includes(a.broker) && (
+                <button type="button" onClick={onLoginTotp} disabled={loadingReconnect} className="btn-primary py-2 text-sm">
+                  Login
+                </button>
               )}
             </>
           )}
@@ -385,7 +461,7 @@ function AccountCard({
 
       {expanded && !liveInfo && a.session_active && (
         <div className="px-5 pb-5 border-t border-border text-sm text-text-muted">
-          Click <strong>Refresh info</strong> to load margins and holdings from Zerodha.
+          Click <strong>Refresh info</strong> to load margins and holdings from your broker.
         </div>
       )}
     </div>

@@ -2,11 +2,15 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import date
 
+import pyotp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 
+from app.broker.angel.adapter import angel_login
+from app.broker.enctoken_login import EnctokenLoginService, normalize_totp_secret
 from app.broker.instruments_sync import run_instrument_sync_job
+from app.broker.kotak.adapter import kotak_login
 from app.config import get_settings
 from app.db import async_session
 from app.models import BrokerAccount, GlobalState, Strategy
@@ -15,51 +19,89 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
+async def _login_zerodha(account: BrokerAccount) -> None:
+    from app.auth.crypto import decrypt_value, encrypt_value
+    from app.broker.totp_login import TotpLoginService
+
+    if account.auth_mode == "enctoken":
+        if not account.password_enc or not account.totp_secret_enc:
+            raise RuntimeError("password + TOTP required")
+        service = EnctokenLoginService()
+        user_id, enctoken = await service.login(
+            account.zerodha_user_id or "",
+            decrypt_value(account.password_enc),
+            decrypt_value(account.totp_secret_enc),
+        )
+        account.enctoken_enc = encrypt_value(enctoken)
+        account.zerodha_user_id = user_id
+    else:
+        if not account.totp_secret_enc:
+            raise RuntimeError("TOTP required")
+        settings = get_settings()
+        service = TotpLoginService(
+            decrypt_value(account.api_key_enc),
+            decrypt_value(account.api_secret_enc),
+            decrypt_value(account.totp_secret_enc),
+            settings.kite_redirect_url,
+        )
+        account.access_token_enc = encrypt_value(await service.login(account.zerodha_user_id or ""))
+
+
+async def _login_angel(account: BrokerAccount) -> None:
+    from app.auth.crypto import decrypt_value, encrypt_value
+
+    totp = pyotp.TOTP(normalize_totp_secret(decrypt_value(account.totp_secret_enc))).now()
+    tokens = angel_login(
+        decrypt_value(account.api_key_enc),
+        account.client_id or "",
+        decrypt_value(account.pin_enc) if account.pin_enc else "",
+        totp,
+    )
+    account.access_token_enc = encrypt_value(tokens["jwt_token"])
+    account.refresh_token_enc = encrypt_value(tokens.get("refresh_token", ""))
+
+
+async def _login_kotak(account: BrokerAccount) -> None:
+    from app.auth.crypto import decrypt_value, encrypt_value
+
+    totp = pyotp.TOTP(normalize_totp_secret(decrypt_value(account.totp_secret_enc))).now()
+    tokens = kotak_login(
+        decrypt_value(account.api_key_enc),
+        account.zerodha_user_id or "",
+        account.client_id or "",
+        totp,
+        decrypt_value(account.password_enc) if account.password_enc else "",
+    )
+    account.access_token_enc = encrypt_value(tokens["access_token"])
+    account.client_id = tokens.get("sid", account.client_id)
+
+
 async def morning_login_job() -> None:
     logger.info("Morning login job started")
     async with async_session() as db:
         result = await db.execute(
-            select(BrokerAccount).where(BrokerAccount.enabled.is_(True), BrokerAccount.auto_login.is_(True))
+            select(BrokerAccount).where(
+                BrokerAccount.enabled.is_(True), BrokerAccount.auto_login.is_(True)
+            )
         )
         accounts = result.scalars().all()
         for account in accounts:
             if account.token_date and account.token_date >= date.today():
                 continue
-            if not account.zerodha_user_id:
-                logger.warning("Account %s needs manual login", account.id)
-                continue
             try:
-                from app.auth.crypto import decrypt_value, encrypt_value
-
-                if account.auth_mode == "enctoken":
-                    if not account.password_enc or not account.totp_secret_enc:
-                        logger.warning("Account %s needs password + TOTP for enctoken auto-login", account.id)
+                broker = account.broker or "zerodha"
+                if broker == "zerodha":
+                    if not account.zerodha_user_id:
+                        logger.warning("Account %s needs manual login", account.id)
                         continue
-                    from app.broker.enctoken_login import EnctokenLoginService
-
-                    service = EnctokenLoginService()
-                    user_id, enctoken = await service.login(
-                        account.zerodha_user_id,
-                        decrypt_value(account.password_enc),
-                        decrypt_value(account.totp_secret_enc),
-                    )
-                    account.enctoken_enc = encrypt_value(enctoken)
-                    account.zerodha_user_id = user_id
+                    await _login_zerodha(account)
+                elif broker == "angel_one":
+                    await _login_angel(account)
+                elif broker == "kotak":
+                    await _login_kotak(account)
                 else:
-                    if not account.totp_secret_enc:
-                        logger.warning("Account %s needs TOTP for Kite Connect auto-login", account.id)
-                        continue
-                    from app.broker.totp_login import TotpLoginService
-
-                    settings = get_settings()
-                    service = TotpLoginService(
-                        decrypt_value(account.api_key_enc),
-                        decrypt_value(account.api_secret_enc),
-                        decrypt_value(account.totp_secret_enc),
-                        settings.kite_redirect_url,
-                    )
-                    token = await service.login(account.zerodha_user_id)
-                    account.access_token_enc = encrypt_value(token)
+                    logger.warning("Auto-login not supported for broker %s", broker)
+                    continue
                 account.token_date = date.today()
                 logger.info("Auto-login success for %s", account.label)
             except Exception:

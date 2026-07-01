@@ -1,7 +1,7 @@
 [project]
 name = "scalpdesk"
 version = "0.1.0"
-description = "Hilega Milega scalping platform for Zerodha Kite Connect"
+description = "Aladin scalping platform — multi-broker index trading"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -17,6 +17,8 @@ dependencies = [
     "bcrypt>=4.0.0,<4.1.0",
     "cryptography>=43.0.0",
     "kiteconnect>=5.0.1",
+    "smartapi-python>=1.4.5",
+    "fyers-apiv3>=3.0.0",
     "apscheduler>=3.10.4",
     "httpx>=0.28.0",
     "pyotp>=2.9.0",

@@ -1,4 +1,4 @@
-"""Hilega Milega indicator calculations."""
+"""Aladin indicator calculations."""
 
 from dataclasses import dataclass
 
@@ -16,12 +16,20 @@ class IndicatorParams:
 @dataclass
 class IndicatorSnapshot:
     rsi: float
-    hilega: float  # WMA of RSI
-    milega: float  # EMA of RSI
+    aladin_signal: float  # WMA of RSI
+    aladin_fast: float  # EMA of RSI
     long_bias: bool
     short_bias: bool
     long_cross: bool
     short_cross: bool
+
+    @property
+    def hilega(self) -> float:
+        return self.aladin_signal
+
+    @property
+    def milega(self) -> float:
+        return self.aladin_fast
 
 
 def compute_rsi(closes: np.ndarray, length: int = 14) -> np.ndarray:
@@ -78,14 +86,21 @@ def ema(values: np.ndarray, length: int) -> np.ndarray:
     return result
 
 
-def compute_hilega_milega(
+def compute_aladin(
     closes: np.ndarray, params: IndicatorParams | None = None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     params = params or IndicatorParams()
     rsi = compute_rsi(closes, params.rsi_length)
-    hilega = wma(rsi, params.wma_length)
-    milega = ema(rsi, params.ema_length)
-    return rsi, hilega, milega
+    aladin_signal = wma(rsi, params.wma_length)
+    aladin_fast = ema(rsi, params.ema_length)
+    return rsi, aladin_signal, aladin_fast
+
+
+def compute_hilega_milega(
+    closes: np.ndarray, params: IndicatorParams | None = None
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Backward-compatible alias."""
+    return compute_aladin(closes, params)
 
 
 def snapshot_at(
@@ -93,28 +108,28 @@ def snapshot_at(
 ) -> IndicatorSnapshot | None:
     if len(closes) < 30:
         return None
-    rsi_arr, hilega_arr, milega_arr = compute_hilega_milega(closes, params)
+    rsi_arr, signal_arr, fast_arr = compute_aladin(closes, params)
     params = params or IndicatorParams()
     i = len(closes) - 1
     prev = i - 1
-    if np.isnan(rsi_arr[i]) or np.isnan(hilega_arr[i]) or np.isnan(milega_arr[i]):
+    if np.isnan(rsi_arr[i]) or np.isnan(signal_arr[i]) or np.isnan(fast_arr[i]):
         return None
-    if prev < 0 or np.isnan(milega_arr[prev]) or np.isnan(hilega_arr[prev]):
+    if prev < 0 or np.isnan(fast_arr[prev]) or np.isnan(signal_arr[prev]):
         return None
 
-    milega, hilega = float(milega_arr[i]), float(hilega_arr[i])
-    prev_milega, prev_hilega = float(milega_arr[prev]), float(hilega_arr[prev])
+    aladin_fast, aladin_signal = float(fast_arr[i]), float(signal_arr[i])
+    prev_fast, prev_signal = float(fast_arr[prev]), float(signal_arr[prev])
     mid = params.mid_level
 
-    long_cross = prev_milega <= prev_hilega and milega > hilega
-    short_cross = prev_milega >= prev_hilega and milega < hilega
-    long_bias = long_cross and milega > mid and hilega > mid
-    short_bias = short_cross and milega < mid and hilega < mid
+    long_cross = prev_fast <= prev_signal and aladin_fast > aladin_signal
+    short_cross = prev_fast >= prev_signal and aladin_fast < aladin_signal
+    long_bias = long_cross and aladin_fast > mid and aladin_signal > mid
+    short_bias = short_cross and aladin_fast < mid and aladin_signal < mid
 
     return IndicatorSnapshot(
         rsi=float(rsi_arr[i]),
-        hilega=hilega,
-        milega=milega,
+        aladin_signal=aladin_signal,
+        aladin_fast=aladin_fast,
         long_bias=long_bias,
         short_bias=short_bias,
         long_cross=long_cross,

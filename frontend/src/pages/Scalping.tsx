@@ -22,7 +22,7 @@ export function ScalpingPage() {
     <div className="p-6 lg:p-8 max-w-[1400px]">
       <PageHeader
         title="Scalping Terminal"
-        subtitle="Hilega Milega strategy builder, execution controls, and fleet management"
+        subtitle="Aladin strategy builder, execution controls, and fleet management"
       />
 
       <div className="grid xl:grid-cols-3 gap-6">
@@ -92,7 +92,7 @@ export function ScalpingPage() {
               {[
                 'Pre-checks & risk guards',
                 'Regime filter (ATR, spread)',
-                'Hilega Milega trigger',
+                'Aladin trigger',
                 'MTF confirmation',
                 'Anti-chase & sizing',
                 'Bracket entry & manage',
