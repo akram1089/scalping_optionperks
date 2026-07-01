@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi import Depends
 
-from app.broker.ticker_service import INDEX_DISPLAY_SYMBOLS
 from app.auth.jwt import decode_token
+from app.broker.ticker_service import INDEX_DISPLAY_SYMBOLS
 from app.broker.ticker import RedisPubSub
 
 logger = logging.getLogger(__name__)

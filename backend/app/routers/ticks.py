@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends
 from app.auth.jwt import get_current_user
 from app.broker.ticker import RedisPubSub
 from app.broker.ticker_service import (
-    INDEX_DISPLAY_SYMBOLS,
     bootstrap_live_ticker,
     fetch_index_ltp_now,
     get_stream_status,
 )
+from app.broker.index_symbols import INDEX_DISPLAY_SYMBOLS
 from app.models import User
 
 logger = logging.getLogger(__name__)

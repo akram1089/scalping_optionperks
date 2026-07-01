@@ -55,6 +55,11 @@ def _auth_headers(enctoken: str) -> dict[str, str]:
     return {**_BROWSER_HEADERS, "Authorization": f"enctoken {enctoken}"}
 
 
+def _quote_params(instruments: list[str]) -> list[tuple[str, str]]:
+    """Kite expects repeated i= query params (one per instrument)."""
+    return [("i", inst) for inst in instruments]
+
+
 class EnctokenService:
     """Mirrors KiteService interface for enctoken-based web sessions."""
 
@@ -118,7 +123,25 @@ class EnctokenService:
         return self._request("GET", "/portfolio/positions")
 
     def ltp(self, instruments: list[str]) -> dict[str, Any]:
-        return self._request("GET", "/quote/ltp", params={"i": instruments})
+        if not instruments:
+            return {}
+        return self._request("GET", "/quote/ltp", params=_quote_params(instruments))
+
+    def quote(self, instruments: list[str]) -> dict[str, Any]:
+        """Full quote — fallback when /quote/ltp rejects an instrument key."""
+        if not instruments:
+            return {}
+        raw = self._request("GET", "/quote", params=_quote_params(instruments))
+        out: dict[str, Any] = {}
+        for key, val in raw.items():
+            if not isinstance(val, dict):
+                continue
+            out[key] = {
+                "last_price": val.get("last_price"),
+                "ohlc": val.get("ohlc") or {},
+                "volume": val.get("volume", 0),
+            }
+        return out
 
     def historical_data(
         self, instrument_token: int, from_date: str, to_date: str, interval: str

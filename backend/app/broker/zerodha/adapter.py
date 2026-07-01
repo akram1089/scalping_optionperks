@@ -36,6 +36,11 @@ class ZerodhaBroker:
     def ltp(self, instruments: list[str]) -> dict[str, Any]:
         return self._inner.ltp(instruments)
 
+    def quote(self, instruments: list[str]) -> dict[str, Any]:
+        if hasattr(self._inner, "quote"):
+            return self._inner.quote(instruments)
+        return self._inner.ltp(instruments)
+
     def instruments(self, exchange: str = "NSE") -> list[dict[str, Any]]:
         return self._inner.instruments(exchange)
 

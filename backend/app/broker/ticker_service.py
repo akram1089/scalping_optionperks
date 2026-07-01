@@ -6,7 +6,9 @@ import logging
 from sqlalchemy import select
 
 from app.auth.crypto import decrypt_value
-from app.broker.factory import account_session_active
+from app.broker.factory import account_session_active, get_broker_for_account
+from app.broker.index_symbols import INDEX_DISPLAY_SYMBOLS
+from app.broker.ltp_fetch import fetch_all_index_ltp
 from app.broker.ltp_poller import ltp_poller
 from app.broker.ticker import RedisPubSub, publish_tick_threadsafe, set_tick_event_loop, ticker_manager
 from app.db import async_session
@@ -14,20 +16,23 @@ from app.models import BrokerAccount, Instrument
 
 logger = logging.getLogger(__name__)
 
-INDEX_DISPLAY_SYMBOLS = ("NIFTY 50", "BANK NIFTY", "SENSEX")
+# Re-export for routers
+__all__ = ["INDEX_DISPLAY_SYMBOLS", "bootstrap_live_ticker", "fetch_index_ltp_now", "get_stream_status"]
 
-# Dashboard IndexCard labels → instrument tradingsymbol(s) to resolve
+# Instrument DB lookup for KiteTicker tokens
 _INDEX_TARGETS: list[tuple[str, str, str]] = [
     ("NIFTY 50", "NSE", "NIFTY 50"),
     ("NIFTY 50", "NSE", "NIFTY"),
+    ("BANK NIFTY", "NSE", "NIFTY BANK"),
     ("BANK NIFTY", "NSE", "BANKNIFTY"),
     ("SENSEX", "BSE", "SENSEX"),
 ]
 
+
 async def _resolve_index_maps(
     db,
 ) -> tuple[dict[str, str], dict[int, str]]:
-    """Return (quote_key→display, token→display) for index instruments."""
+    """Return (quote_key→display, token→display) for KiteTicker subscription."""
     quote_keys: dict[str, str] = {}
     token_map: dict[int, str] = {}
     seen_labels: set[str] = set()
@@ -81,21 +86,15 @@ def _payload_from_quote(q: dict, display: str) -> dict:
 
 async def fetch_index_ltp_now() -> dict[str, dict]:
     """Fetch index LTP from Zerodha REST and publish to Redis (works for enctoken + OAuth)."""
-    from app.broker.factory import get_broker_for_account
-
     async with async_session() as db:
         account = await _get_connected_zerodha(db)
         if not account:
             return {}
 
-        quote_keys, _ = await _resolve_index_maps(db)
-        if not quote_keys:
-            return {}
-
         broker = get_broker_for_account(account)
         loop = asyncio.get_running_loop()
         try:
-            quotes = await loop.run_in_executor(None, lambda: broker.ltp(list(quote_keys.keys())))
+            quotes = await fetch_all_index_ltp(broker, loop)
         except Exception:
             logger.exception("Index LTP fetch failed for %s", account.label)
             return {}
@@ -106,15 +105,16 @@ async def fetch_index_ltp_now() -> dict[str, dict]:
                 pass
 
         published: dict[str, dict] = {}
-        for quote_key, display in quote_keys.items():
-            q = quotes.get(quote_key) or {}
-            if not q:
-                continue
+        for display, q in quotes.items():
             payload = _payload_from_quote(q, display)
             if payload.get("ltp") is None:
                 continue
-            await RedisPubSub.publish_tick(display, {k: v for k, v in payload.items() if k != "symbol"})
+            await RedisPubSub.publish_tick(
+                display, {k: v for k, v in payload.items() if k != "symbol"}
+            )
             published[display] = payload
+        if not published:
+            logger.warning("Index LTP fetch returned no prices for %s", account.label)
         return published
 
 
@@ -128,8 +128,8 @@ async def get_stream_status() -> dict:
                 "reason": "no_session",
                 "message": "Connect a Zerodha account in Accounts",
             }
-        quote_keys, _ = await _resolve_index_maps(db)
-        if not quote_keys:
+        _, token_map = await _resolve_index_maps(db)
+        if not token_map and account.auth_mode != "enctoken":
             return {
                 "active": False,
                 "reason": "no_instruments",
@@ -156,18 +156,18 @@ async def bootstrap_live_ticker() -> bool:
             logger.info("Live ticker: no connected Zerodha account")
             return False
 
-        quote_keys, token_map = await _resolve_index_maps(db)
-        if not quote_keys:
-            logger.warning("Live ticker: no index instruments in DB — run instrument sync")
-            return False
+        _, token_map = await _resolve_index_maps(db)
 
         if account.auth_mode == "enctoken":
             await ticker_manager.stop()
-            ltp_poller.set_targets(quote_keys)
             await ltp_poller.start(account)
             await fetch_index_ltp_now()
-            logger.info("Live LTP poller started for %s (%d indices)", account.label, len(quote_keys))
+            logger.info("Live LTP poller started for %s", account.label)
             return True
+
+        if not token_map:
+            logger.warning("Live ticker: no index instruments in DB — run instrument sync")
+            return False
 
         api_key = decrypt_value(account.api_key_enc) if account.api_key_enc else ""
         session_token = (
@@ -202,7 +202,6 @@ async def ticker_watchdog() -> None:
             if not live_stream_active():
                 await bootstrap_live_ticker()
             else:
-                # Keep Redis cache warm even when stream is up
                 await fetch_index_ltp_now()
         except Exception:
             logger.exception("Ticker watchdog error")
