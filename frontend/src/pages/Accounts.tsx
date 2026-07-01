@@ -147,7 +147,7 @@ export function AccountsPage() {
   const connected = accounts.filter((a) => a.session_active).length
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1000px]">
+    <div className="px-4 py-4 sm:p-6 lg:p-8 max-w-[1000px]">
       <PageHeader
         title="Broker Accounts"
         subtitle={`Up to ${limits?.max_accounts ?? 5} accounts — Zerodha, Angel One, Fyers, Kotak, Ventura`}
@@ -162,7 +162,7 @@ export function AccountsPage() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <StatCard label="Accounts" value={`${accounts.length}/${limits?.max_accounts ?? 5}`} accent="slate" />
         <StatCard label="Connected" value={connected} accent="green" />
         <StatCard label="Needs Login" value={accounts.length - connected} accent="amber" />

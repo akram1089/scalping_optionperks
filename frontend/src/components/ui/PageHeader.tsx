@@ -6,7 +6,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+    <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
       <div>
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
@@ -60,7 +60,7 @@ export function IndexCard({
 }) {
   const up = (change ?? 0) >= 0
   return (
-    <div className="card p-5 flex-1 min-w-[180px]">
+    <div className="card p-4 sm:p-5 flex-1 min-w-0 sm:min-w-[140px]">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-bold text-text-faint tracking-wider">{symbol}</span>
         {delayed && <span className="badge bg-bg-subtle text-text-faint">DELAYED</span>}

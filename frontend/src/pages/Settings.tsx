@@ -33,7 +33,7 @@ export function SettingsPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 max-w-[900px]">
+    <div className="px-4 py-4 sm:p-6 lg:p-8 max-w-[900px]">
       <PageHeader title="Settings" subtitle="Account preferences, safety controls, and audit trail" />
 
       <div className="space-y-6">
@@ -55,7 +55,7 @@ export function SettingsPage() {
         </SectionCard>
 
         <SectionCard title="Safety Controls">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
               <p className="font-semibold">Global Kill Switch</p>
               <p className="text-sm text-text-muted mt-0.5">
@@ -77,7 +77,7 @@ export function SettingsPage() {
         </SectionCard>
 
         <SectionCard title="Instrument Master" description="Zerodha symbols — auto-sync daily at 08:50 IST">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="text-sm space-y-1">
               {instrumentSync ? (
                 <>

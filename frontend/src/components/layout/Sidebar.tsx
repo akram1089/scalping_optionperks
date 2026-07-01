@@ -17,22 +17,23 @@ const INDEX_LABELS: Record<string, string> = {
   NIFTYNXT50: 'Nifty Next 50',
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { email, logout } = useAuthStore()
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
+  const sidebarOpen = useUiStore((s) => s.sidebarOpen)
   const toggleSidebar = useUiStore((s) => s.toggleSidebar)
 
   return (
     <aside
-      className={`relative shrink-0 h-screen sticky top-0 flex flex-col border-r border-border bg-sidebar shadow-sidebar z-30 transition-[width] duration-200 ease-in-out ${
-        collapsed ? 'w-[72px]' : 'w-56'
-      }`}
+      className={`fixed lg:sticky inset-y-0 left-0 z-40 shrink-0 h-screen flex flex-col border-r border-border bg-sidebar shadow-sidebar transition-transform duration-200 ease-in-out ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      } ${collapsed ? 'w-[72px]' : 'w-56'}`}
     >
       <button
         type="button"
         onClick={toggleSidebar}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="absolute -right-3 top-[72px] z-40 w-6 h-6 rounded-full border border-border bg-surface shadow-card flex items-center justify-center text-text-muted hover:text-text hover:border-border-strong transition-colors"
+        className="hidden lg:flex absolute -right-3 top-[72px] z-40 w-6 h-6 rounded-full border border-border bg-surface shadow-card items-center justify-center text-text-muted hover:text-text hover:border-border-strong transition-colors"
       >
         <ChevronIcon collapsed={collapsed} />
       </button>
@@ -54,6 +55,7 @@ export function Sidebar() {
             key={to}
             to={to}
             title={collapsed ? label : undefined}
+            onClick={onNavigate}
             className={({ isActive }) =>
               `nav-item ${collapsed ? 'justify-center px-0' : ''} ${isActive ? 'nav-item-active' : ''}`
             }

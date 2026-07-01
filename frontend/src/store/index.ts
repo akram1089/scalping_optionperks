@@ -54,31 +54,38 @@ interface LiveState {
   ticks: Record<string, TickData>
   selectedAccountId: string | null
   killSwitch: boolean
+  wsConnected: boolean
   setTick: (data: TickData) => void
   setSelectedAccount: (id: string | null) => void
   setKillSwitch: (v: boolean) => void
+  setWsConnected: (v: boolean) => void
 }
 
 export const useLiveStore = create<LiveState>((set) => ({
   ticks: {},
   selectedAccountId: null,
   killSwitch: false,
+  wsConnected: false,
   setTick: (data) =>
     set((s) => ({ ticks: { ...s.ticks, [data.symbol]: { ...s.ticks[data.symbol], ...data } } })),
   setSelectedAccount: (id) => set({ selectedAccountId: id }),
   setKillSwitch: (v) => set({ killSwitch: v }),
+  setWsConnected: (v) => set({ wsConnected: v }),
 }))
 
 interface UiState {
   sidebarCollapsed: boolean
+  sidebarOpen: boolean
   toggleSidebar: () => void
   setSidebarCollapsed: (v: boolean) => void
+  setSidebarOpen: (v: boolean) => void
 }
 
 const SIDEBAR_KEY = 'scalpdesk_sidebar_collapsed'
 
 export const useUiStore = create<UiState>((set) => ({
   sidebarCollapsed: localStorage.getItem(SIDEBAR_KEY) === 'true',
+  sidebarOpen: false,
   toggleSidebar: () =>
     set((s) => {
       const next = !s.sidebarCollapsed
@@ -89,4 +96,5 @@ export const useUiStore = create<UiState>((set) => ({
     localStorage.setItem(SIDEBAR_KEY, String(v))
     set({ sidebarCollapsed: v })
   },
+  setSidebarOpen: (v) => set({ sidebarOpen: v }),
 }))

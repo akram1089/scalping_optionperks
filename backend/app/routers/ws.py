@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi import Depends
 
+from app.broker.ticker_service import INDEX_DISPLAY_SYMBOLS
 from app.auth.jwt import decode_token
 from app.broker.ticker import RedisPubSub
 
@@ -63,6 +64,10 @@ async def websocket_live(ws: WebSocket, token: str | None = None):
             await ws.close(code=4001)
             return
     await manager.connect(ws)
+    for sym in INDEX_DISPLAY_SYMBOLS:
+        cached = await RedisPubSub.get_tick(sym)
+        if cached:
+            await ws.send_json({"type": "tick", "data": cached})
     try:
         while True:
             msg = await ws.receive_text()

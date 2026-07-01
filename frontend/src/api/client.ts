@@ -6,6 +6,13 @@ export function asNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+export interface TickData {
+  symbol: string
+  ltp?: number
+  change_pct?: number
+  volume?: number
+}
+
 export interface AuthTokens {
   access_token: string
   refresh_token: string
@@ -86,6 +93,8 @@ export const api = {
     request<BrokerAccount>(`/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   bootstrapLiveTicker: () =>
     request<{ status: string }>('/accounts/live-ticker/bootstrap', { method: 'POST' }),
+  getTickSnapshot: () =>
+    request<{ ticks: Record<string, TickData> }>('/ticks/snapshot'),
   getAccountLiveInfo: (id: string) => request<BrokerLiveInfo>(`/accounts/${id}/live-info`),
   getChartCandles: (params: {
     instrument_token: number

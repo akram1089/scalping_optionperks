@@ -19,7 +19,7 @@ export function ScalpingPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px]">
+    <div className="px-4 py-4 sm:p-6 lg:p-8 max-w-[1400px]">
       <PageHeader
         title="Scalping Terminal"
         subtitle="Aladin strategy builder, execution controls, and fleet management"

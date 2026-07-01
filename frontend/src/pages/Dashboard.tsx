@@ -11,6 +11,7 @@ export function DashboardPage() {
   const selectedAccountId = useLiveStore((s) => s.selectedAccountId)
   const setSelectedAccount = useLiveStore((s) => s.setSelectedAccount)
   const ticks = useLiveStore((s) => s.ticks)
+  const killSwitch = useLiveStore((s) => s.killSwitch)
   const [signalFilter, setSignalFilter] = useState('ALL')
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: api.getAccounts })
@@ -30,6 +31,8 @@ export function DashboardPage() {
     refetchInterval: 15000,
   })
   const { data: strategies = [] } = useQuery({ queryKey: ['strategies'], queryFn: api.getStrategies })
+  const { data: killData } = useQuery({ queryKey: ['kill-switch'], queryFn: api.getKillSwitch })
+  const isKilled = killSwitch || killData?.kill_switch
   const { data: trades = [] } = useQuery({
     queryKey: ['trades', selectedAccountId],
     queryFn: () => api.getTrades(selectedAccountId ?? undefined),
@@ -53,7 +56,7 @@ export function DashboardPage() {
   })
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1600px]">
+    <div className="px-4 py-4 sm:p-6 lg:p-8 max-w-[1600px]">
       <PageHeader
         title="Trading Dashboard"
         subtitle="Institutional-grade intraday analytics and execution terminal"
@@ -73,7 +76,13 @@ export function DashboardPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-4 mb-6">
+        {isKilled && (
+          <div className="mb-4 p-3 rounded-btn bg-down/10 text-down text-sm">
+            Kill switch is ON — new orders are blocked. Reset it in Settings to trade. Live data is unaffected.
+          </div>
+        )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
         {INDEX_SYMBOLS.map((sym) => {
           const tick = ticks[sym]
           return (
@@ -88,7 +97,7 @@ export function DashboardPage() {
         })}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 mb-6 sm:mb-8">
         <StatCard label="Active" value={`${totals.running} / ${strategies.length}`} accent="blue" />
         <StatCard label="Buy Signals" value={totals.buySignals} accent="green" />
         <StatCard label="Sell Signals" value={totals.sellSignals} accent="red" />

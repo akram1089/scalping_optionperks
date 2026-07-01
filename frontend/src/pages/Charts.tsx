@@ -17,11 +17,11 @@ const INTERVALS = [
 ]
 
 const DEFAULT_SYMBOL: ChartSymbol = {
-  tradingsymbol: 'RELIANCE',
+  tradingsymbol: 'NIFTY',
   instrument_token: 0,
-  exchange: 'NSE',
-  segment: 'equity',
-  label: 'RELIANCE',
+  exchange: 'NFO',
+  segment: 'futures',
+  label: 'NIFTY FUT',
 }
 
 export function ChartsPage() {
@@ -36,6 +36,25 @@ export function ChartsPage() {
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: api.getAccounts })
   const connectedAccount = accounts.find((a) => a.session_active)
+
+  const { data: defaultFut } = useQuery({
+    queryKey: ['chart-default-nifty-fut'],
+    queryFn: () => api.searchInstruments({ exchange: 'NFO', instrument_type: 'FUT', underlying: 'NIFTY', limit: 1 }),
+    staleTime: 3600_000,
+  })
+
+  useEffect(() => {
+    const inst = defaultFut?.[0]
+    if (inst?.instrument_token && symbol.instrument_token === 0) {
+      setSymbol({
+        tradingsymbol: inst.tradingsymbol,
+        instrument_token: inst.instrument_token,
+        exchange: inst.exchange,
+        segment: 'futures',
+        label: inst.tradingsymbol,
+      })
+    }
+  }, [defaultFut, symbol.instrument_token])
 
   const canFetchLive = Boolean(symbol.instrument_token && connectedAccount)
 
@@ -99,12 +118,12 @@ export function ChartsPage() {
   const intervalLabel = INTERVALS.find((i) => i.value === interval)?.label ?? interval
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1600px]">
+    <div className="px-4 py-4 sm:p-6 lg:p-8 max-w-[1600px]">
       <PageHeader
         title="Charts"
         subtitle="Live candles · Aladin indicator · SL & target overlays"
         action={
-          <select value={interval} onChange={(e) => setInterval(e.target.value)} className="input-field w-auto">
+          <select value={interval} onChange={(e) => setInterval(e.target.value)} className="input-field w-full sm:w-auto">
             {INTERVALS.map((i) => (
               <option key={i.value} value={i.value}>{i.label}</option>
             ))}

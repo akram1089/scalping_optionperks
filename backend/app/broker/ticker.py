@@ -13,6 +13,19 @@ logger = logging.getLogger(__name__)
 TICK_CHANNEL = "scalpdesk:ticks"
 TICK_CACHE_PREFIX = "tick:"
 
+_event_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_tick_event_loop(loop: asyncio.AbstractEventLoop) -> None:
+    global _event_loop
+    _event_loop = loop
+
+
+def publish_tick_threadsafe(symbol: str, data: dict) -> None:
+    if _event_loop is None or _event_loop.is_closed():
+        return
+    asyncio.run_coroutine_threadsafe(RedisPubSub.publish_tick(symbol, data), _event_loop)
+
 
 class RedisPubSub:
     _client: aioredis.Redis | None = None
@@ -67,6 +80,10 @@ class TickerManager:
             return
         self._running = True
         self._task = asyncio.create_task(self._run_ticker(api_key, access_token))
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
 
     async def stop(self) -> None:
         self._running = False
