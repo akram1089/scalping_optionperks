@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { useLiveWebSocket } from '../../hooks/useLiveWebSocket'
 import { useLiveBootstrap } from '../../hooks/useLiveBootstrap'
+import { useLiveTickPoll } from '../../hooks/useLiveTickPoll'
 import { useUiStore } from '../../store'
 import { Sidebar } from './Sidebar'
 import { TopStatusBar } from './TopStatusBar'
@@ -8,6 +9,7 @@ import { TopStatusBar } from './TopStatusBar'
 export function AppShell() {
   useLiveWebSocket()
   useLiveBootstrap()
+  useLiveTickPoll()
 
   const sidebarOpen = useUiStore((s) => s.sidebarOpen)
   const setSidebarOpen = useUiStore((s) => s.setSidebarOpen)

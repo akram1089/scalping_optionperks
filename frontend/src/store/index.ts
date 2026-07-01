@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api } from '../api/client'
+import { api, type StreamStatus, type TickData } from '../api/client'
 
 interface AuthState {
   email: string | null
@@ -43,22 +43,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 }))
 
-export interface TickData {
-  symbol: string
-  ltp?: number
-  change_pct?: number
-  volume?: number
-}
-
 interface LiveState {
   ticks: Record<string, TickData>
   selectedAccountId: string | null
   killSwitch: boolean
   wsConnected: boolean
+  streamStatus: StreamStatus | null
   setTick: (data: TickData) => void
   setSelectedAccount: (id: string | null) => void
   setKillSwitch: (v: boolean) => void
   setWsConnected: (v: boolean) => void
+  setStreamStatus: (s: StreamStatus | null) => void
 }
 
 export const useLiveStore = create<LiveState>((set) => ({
@@ -66,11 +61,13 @@ export const useLiveStore = create<LiveState>((set) => ({
   selectedAccountId: null,
   killSwitch: false,
   wsConnected: false,
+  streamStatus: null,
   setTick: (data) =>
     set((s) => ({ ticks: { ...s.ticks, [data.symbol]: { ...s.ticks[data.symbol], ...data } } })),
   setSelectedAccount: (id) => set({ selectedAccountId: id }),
   setKillSwitch: (v) => set({ killSwitch: v }),
   setWsConnected: (v) => set({ wsConnected: v }),
+  setStreamStatus: (streamStatus) => set({ streamStatus }),
 }))
 
 interface UiState {

@@ -17,6 +17,7 @@ export function useLiveWebSocket() {
     const hydrateTicks = () => {
       api.getTickSnapshot().then((res) => {
         Object.values(res.ticks).forEach((tick) => setTick(tick))
+        if (res.stream) useLiveStore.getState().setStreamStatus(res.stream)
       }).catch(() => {})
     }
 

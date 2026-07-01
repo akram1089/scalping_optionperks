@@ -22,8 +22,10 @@ export function useLiveBootstrap() {
       setSelectedAccount(connectedZerodha.id)
     }
 
-    api.bootstrapLiveTicker().catch(() => {
-      /* ticker may already be running */
-    })
+    api.bootstrapLiveTicker().catch(() => {})
+    api.refreshTicks().then((res) => {
+      Object.values(res.ticks).forEach((t) => useLiveStore.getState().setTick(t))
+      if (res.stream) useLiveStore.getState().setStreamStatus(res.stream)
+    }).catch(() => {})
   }, [accounts, selectedAccountId, setSelectedAccount])
 }

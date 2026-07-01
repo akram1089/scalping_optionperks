@@ -12,6 +12,7 @@ export function TopStatusBar({ onMenuClick }: Props) {
   const market = useMarketStatus()
   const killSwitch = useLiveStore((s) => s.killSwitch)
   const wsConnected = useLiveStore((s) => s.wsConnected)
+  const streamStatus = useLiveStore((s) => s.streamStatus)
   const ticks = useLiveStore((s) => s.ticks)
   const tickCount = Object.keys(ticks).length
 
@@ -22,9 +23,10 @@ export function TopStatusBar({ onMenuClick }: Props) {
   })
 
   const isKilled = killSwitch || killData?.kill_switch
-  const streamLive = wsConnected && tickCount > 0
+  const streamLive = tickCount > 0
   const streamLabel = streamLive ? 'LIVE' : wsConnected ? 'WAITING' : 'OFFLINE'
-  const streamOk = streamLive || (!market.open && wsConnected)
+  const streamOk = streamLive
+  const waitHint = !streamLive && streamStatus?.message
 
   return (
     <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur-md border-b border-border px-4 py-2.5 sm:px-6 sm:py-3">
@@ -43,7 +45,7 @@ export function TopStatusBar({ onMenuClick }: Props) {
           <span className={`badge ${market.open ? 'bg-accent-50 text-accent' : 'bg-down/10 text-down'}`}>
             {market.label}
           </span>
-          <StatusPill label="STREAM" value={streamLabel} ok={streamOk} compact />
+          <StatusPill label="STREAM" value={streamLabel} ok={streamOk} compact title={waitHint || undefined} />
           <StatusPill label="ORDERS" value={isKilled ? 'BLOCKED' : 'READY'} ok={!isKilled} compact />
           {isKilled && (
             <span className="badge bg-down text-white hidden sm:inline-flex">KILL SWITCH ON</span>
@@ -56,6 +58,9 @@ export function TopStatusBar({ onMenuClick }: Props) {
           <span className="font-mono tabular-nums text-[11px] sm:text-xs">{formatISTTime(time)} IST</span>
         </div>
       </div>
+      {waitHint && !streamLive && (
+        <p className="mt-2 text-xs text-warn">{waitHint}</p>
+      )}
     </header>
   )
 }
@@ -65,14 +70,19 @@ function StatusPill({
   value,
   ok,
   compact,
+  title,
 }: {
   label: string
   value: string
   ok: boolean
   compact?: boolean
+  title?: string
 }) {
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-btn border border-border bg-bg-subtle text-[10px] sm:text-[11px]">
+    <div
+      title={title}
+      className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-btn border border-border bg-bg-subtle text-[10px] sm:text-[11px]"
+    >
       {!compact && <span className="text-text-faint font-medium hidden md:inline">{label}</span>}
       <span className="text-text-faint font-medium md:hidden">{label.slice(0, 3)}</span>
       <span className={`font-semibold ${ok ? 'text-up' : 'text-down'}`}>{value}</span>

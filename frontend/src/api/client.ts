@@ -13,6 +13,14 @@ export interface TickData {
   volume?: number
 }
 
+export interface StreamStatus {
+  active: boolean
+  reason: string
+  message: string
+  mode?: string
+  account?: string
+}
+
 export interface AuthTokens {
   access_token: string
   refresh_token: string
@@ -94,7 +102,9 @@ export const api = {
   bootstrapLiveTicker: () =>
     request<{ status: string }>('/accounts/live-ticker/bootstrap', { method: 'POST' }),
   getTickSnapshot: () =>
-    request<{ ticks: Record<string, TickData> }>('/ticks/snapshot'),
+    request<{ ticks: Record<string, TickData>; stream: StreamStatus }>('/ticks/snapshot'),
+  refreshTicks: () =>
+    request<{ ticks: Record<string, TickData>; stream: StreamStatus }>('/ticks/refresh', { method: 'POST' }),
   getAccountLiveInfo: (id: string) => request<BrokerLiveInfo>(`/accounts/${id}/live-info`),
   getChartCandles: (params: {
     instrument_token: number

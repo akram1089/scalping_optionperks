@@ -11,6 +11,7 @@ export function DashboardPage() {
   const selectedAccountId = useLiveStore((s) => s.selectedAccountId)
   const setSelectedAccount = useLiveStore((s) => s.setSelectedAccount)
   const ticks = useLiveStore((s) => s.ticks)
+  const streamStatus = useLiveStore((s) => s.streamStatus)
   const killSwitch = useLiveStore((s) => s.killSwitch)
   const [signalFilter, setSignalFilter] = useState('ALL')
 
@@ -79,6 +80,17 @@ export function DashboardPage() {
         {isKilled && (
           <div className="mb-4 p-3 rounded-btn bg-down/10 text-down text-sm">
             Kill switch is ON — new orders are blocked. Reset it in Settings to trade. Live data is unaffected.
+          </div>
+        )}
+        {!Object.keys(ticks).length && streamStatus?.message && (
+          <div className="mb-4 p-3 rounded-btn bg-warn/10 text-warn text-sm">
+            {streamStatus.message}
+            {streamStatus.reason === 'no_instruments' && (
+              <> — go to <strong>Settings → Sync Instruments</strong>, then refresh.</>
+            )}
+            {streamStatus.reason === 'no_session' && (
+              <> — go to <strong>Accounts</strong> and connect Zerodha.</>
+            )}
           </div>
         )}
 
