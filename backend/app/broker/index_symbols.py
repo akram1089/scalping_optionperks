@@ -8,3 +8,10 @@ INDEX_LTP_ALIASES: dict[str, list[str]] = {
 }
 
 INDEX_DISPLAY_SYMBOLS = tuple(INDEX_LTP_ALIASES.keys())
+
+# Zerodha index instrument_token → dashboard label (fallback if DB sync missing)
+INDEX_INSTRUMENT_TOKENS: dict[int, str] = {
+    256265: "NIFTY 50",
+    260105: "BANK NIFTY",
+    265: "SENSEX",
+}

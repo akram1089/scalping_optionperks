@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     kite_instruments_url: str = "https://api.kite.trade/instruments"
     instrument_sync_batch_size: int = 1000
+    # Public websocket key used with enctoken (Zerodha blocks REST quote/ltp for enctoken)
+    kite_ws_api_key: str = "TradeViaPython"
 
     default_paper_mode: bool = True
     max_accounts_per_user: int = 5

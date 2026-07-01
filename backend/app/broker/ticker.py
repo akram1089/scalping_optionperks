@@ -127,8 +127,17 @@ class TickerManager:
                     ws.set_mode(ws.MODE_LTP, self._tokens)
                 logger.info("Kite ticker connected, subscribed to %d tokens", len(self._tokens))
 
+            def on_error(ws, code, reason):
+                logger.error("Kite ticker error code=%s reason=%s", code, reason)
+
+            def on_close(ws, code, reason):
+                logger.warning("Kite ticker closed code=%s reason=%s", code, reason)
+                self._running = False
+
             kws.on_ticks = on_ticks
             kws.on_connect = on_connect
+            kws.on_error = on_error
+            kws.on_close = on_close
             kws.connect(threaded=True)
 
             while self._running:
