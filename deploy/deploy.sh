@@ -47,11 +47,20 @@ check_port() {
   fi
 }
 
-if [[ "${CADDY_ENABLED}" == "true" || "${CADDY_ENABLED}" == "1" ]]; then
-  check_port "${HTTP_PORT}" "HTTP_PORT"
-  check_port "${HTTPS_PORT}" "HTTPS_PORT"
+# Skip port checks when this stack is already running (redeploy / git pull update).
+stack_running() {
+  docker compose -f docker-compose.prod.yml ps --status running -q 2>/dev/null | grep -q .
+}
+
+if ! stack_running; then
+  if [[ "${CADDY_ENABLED}" == "true" || "${CADDY_ENABLED}" == "1" ]]; then
+    check_port "${HTTP_PORT}" "HTTP_PORT"
+    check_port "${HTTPS_PORT}" "HTTPS_PORT"
+  else
+    check_port "${WEB_HOST_PORT}" "WEB_HOST_PORT"
+  fi
 else
-  check_port "${WEB_HOST_PORT}" "WEB_HOST_PORT"
+  echo "Stack already running — skipping host port checks (update redeploy)."
 fi
 
 COMPOSE_FILE="-f docker-compose.prod.yml"
