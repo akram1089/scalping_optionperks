@@ -1,0 +1,2 @@
+# Kotak neo_api_client pip install can upgrade websockets; keep uvicorn-compatible.
+websockets>=12.0,<14.0
